@@ -1,246 +1,187 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
-type Site = {
-  id: number;
-  name: string;
-  area: string;
-  address: string;
-  stalls: number;
-  power: number;
-  heading: number;
-  charging: number;
-  eta15: number;
-  status: "空きあり" | "やや混雑" | "混雑" | "情報なし";
-  updated: string;
-  x: number;
-  y: number;
-  distance: string;
-};
+type Screen = "search" | "station" | "join" | "waiting" | "soon" | "turn" | "duration" | "charging" | "complete";
 
-const sites: Site[] = [
-  { id: 1, name: "東京・有明", area: "東京都", address: "東京都江東区有明2丁目", stalls: 12, power: 250, heading: 3, charging: 5, eta15: 2, status: "やや混雑", updated: "1分前", x: 70, y: 61, distance: "8.4 km" },
-  { id: 2, name: "東京・六本木", area: "東京都", address: "東京都港区六本木6丁目", stalls: 6, power: 250, heading: 1, charging: 2, eta15: 1, status: "空きあり", updated: "2分前", x: 61, y: 53, distance: "4.2 km" },
-  { id: 3, name: "横浜・みなとみらい", area: "神奈川県", address: "神奈川県横浜市西区", stalls: 8, power: 250, heading: 5, charging: 7, eta15: 3, status: "混雑", updated: "たった今", x: 54, y: 76, distance: "31 km" },
-  { id: 4, name: "川崎", area: "神奈川県", address: "神奈川県川崎市幸区", stalls: 8, power: 250, heading: 2, charging: 3, eta15: 0, status: "空きあり", updated: "4分前", x: 60, y: 67, distance: "18 km" },
-  { id: 5, name: "柏", area: "千葉県", address: "千葉県柏市大島田1丁目", stalls: 8, power: 250, heading: 0, charging: 1, eta15: 0, status: "空きあり", updated: "8分前", x: 79, y: 38, distance: "34 km" },
-  { id: 6, name: "さいたま新都心", area: "埼玉県", address: "埼玉県さいたま市大宮区", stalls: 6, power: 150, heading: 4, charging: 4, eta15: 2, status: "やや混雑", updated: "3分前", x: 52, y: 27, distance: "29 km" },
-  { id: 7, name: "木更津", area: "千葉県", address: "千葉県木更津市金田東3丁目", stalls: 8, power: 250, heading: 1, charging: 0, eta15: 1, status: "空きあり", updated: "12分前", x: 76, y: 84, distance: "47 km" },
-  { id: 8, name: "高崎", area: "群馬県", address: "群馬県高崎市棟高町", stalls: 6, power: 250, heading: 0, charging: 0, eta15: 0, status: "情報なし", updated: "35分前", x: 25, y: 12, distance: "112 km" },
+const stations = [
+  { id: 1, name: "東京 有明", address: "江東区有明2丁目", distance: "1.4 km", wait: 25, ahead: 3, stalls: "8 / 8", tone: "busy" },
+  { id: 2, name: "東京 六本木", address: "港区六本木6丁目", distance: "6.8 km", wait: 10, ahead: 1, stalls: "6 / 6", tone: "medium" },
+  { id: 3, name: "川崎", address: "川崎市幸区堀川町", distance: "14.2 km", wait: 0, ahead: 0, stalls: "6 / 8", tone: "open" },
 ];
 
-const statusClass: Record<Site["status"], string> = {
-  "空きあり": "is-open",
-  "やや混雑": "is-medium",
-  "混雑": "is-busy",
-  "情報なし": "is-unknown",
-};
+const flow: Screen[] = ["search", "station", "join", "waiting", "soon", "turn", "duration", "charging", "complete"];
 
 export default function Home() {
-  const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState("すべて");
-  const [selectedId, setSelectedId] = useState(1);
-  const [detailOpen, setDetailOpen] = useState(true);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [connectOpen, setConnectOpen] = useState(false);
-  const [eta, setEta] = useState("30分");
-  const [vehicle, setVehicle] = useState("Model 3 · 72%");
-  const [registered, setRegistered] = useState(false);
-  const [mapType, setMapType] = useState<"map" | "list">("map");
+  const [screen, setScreen] = useState<Screen>("search");
+  const [nickname, setNickname] = useState("");
+  const [duration, setDuration] = useState(30);
+  const [seconds, setSeconds] = useState(299);
 
-  const filtered = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    return sites.filter((site) => {
-      const matchesQuery = !normalized || `${site.name}${site.area}${site.address}`.toLowerCase().includes(normalized);
-      const matchesFilter = filter === "すべて" || (filter === "空きあり" ? site.status === "空きあり" : site.power >= 250);
-      return matchesQuery && matchesFilter;
-    });
-  }, [query, filter]);
+  useEffect(() => {
+    if (screen !== "turn") return;
+    const timer = window.setInterval(() => setSeconds((current) => Math.max(0, current - 1)), 1000);
+    return () => window.clearInterval(timer);
+  }, [screen]);
 
-  const selected = sites.find((site) => site.id === selectedId) ?? sites[0];
+  const reset = () => {
+    setScreen("search");
+    setNickname("");
+    setDuration(30);
+    setSeconds(299);
+  };
 
-  function selectSite(id: number) {
-    setSelectedId(id);
-    setDetailOpen(true);
-    setRegistered(false);
-  }
+  const advanceDemo = () => {
+    const index = flow.indexOf(screen);
+    if (screen === "complete") reset();
+    else setScreen(flow[Math.min(index + 1, flow.length - 1)]);
+  };
+
+  const countdown = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 
   return (
-    <main className="app-shell">
-      <header className="topbar">
-        <div className="brand" aria-label="Charge Scout ホーム">
-          <span className="brand-mark">C</span>
-          <span className="brand-name">CHARGE SCOUT</span>
-          <span className="brand-tag">BETA</span>
-        </div>
-        <div className="header-actions">
-          <button className="icon-button help-button" aria-label="ヘルプ">?</button>
-          <button className="tesla-button" onClick={() => setConnectOpen(true)}>
-            <span className="tesla-t">T</span>
-            Teslaと連携
-          </button>
-        </div>
-      </header>
+    <main className="mock-stage">
+      <div className="video-title">
+        <span>PRODUCT MOCK</span>
+        <h1>スーパーチャージャー待ち列</h1>
+        <p>着いてから、充電を終えるまで。</p>
+      </div>
 
-      <section className="workspace">
-        <aside className="sidebar">
-          <div className="search-wrap">
-            <span className="search-icon">⌕</span>
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="施設名・住所から検索"
-              aria-label="施設名・住所から検索"
-            />
-            <button className="locate-inline" aria-label="現在地を使う" onClick={() => setQuery("東京")}><span>⌖</span></button>
-          </div>
+      <section className="phone" aria-label="スーパーチャージャー待ち列アプリのMock">
+        <div className="phone-bar"><span>9:41</span><div className="phone-sensors"><i /><i /><b /></div></div>
 
-          <div className="filter-row" aria-label="施設の絞り込み">
-            {["すべて", "空きあり", "250kW"].map((item) => (
-              <button key={item} className={filter === item ? "filter active" : "filter"} onClick={() => setFilter(item)}>{item}</button>
-            ))}
-          </div>
+        <header className="app-header">
+          {screen !== "search" && screen !== "complete" ? (
+            <button className="back-button" onClick={() => setScreen(screen === "station" ? "search" : "station")} aria-label="戻る">‹</button>
+          ) : <span className="header-spacer" />}
+          <div className="app-brand"><span className="app-logo">Q</span><strong>Charge Queue</strong></div>
+          <span className="mock-pill">MOCK</span>
+        </header>
 
-          <div className="results-heading">
-            <div><strong>{filtered.length}</strong><span>件の施設</span></div>
-            <button onClick={() => setMapType(mapType === "map" ? "list" : "map")}>{mapType === "map" ? "距離順" : "地図表示"} <span>↕</span></button>
-          </div>
-
-          <div className="site-list">
-            {filtered.map((site) => (
-              <button key={site.id} className={selected.id === site.id ? "site-card selected" : "site-card"} onClick={() => selectSite(site.id)}>
-                <div className="card-topline">
-                  <span className={`status-dot ${statusClass[site.status]}`} />
-                  <strong>{site.name}</strong>
-                  <span className="distance">{site.distance}</span>
-                </div>
-                <p>{site.address}</p>
-                <div className="card-stats">
-                  <span><b>{site.stalls}</b> ストール</span>
-                  <span><b>{site.power}</b> kW</span>
-                  <span className={statusClass[site.status]}>{site.status}</span>
-                </div>
-              </button>
-            ))}
-            {filtered.length === 0 && <div className="empty-state"><span>⌕</span><strong>施設が見つかりません</strong><p>別の地域名で検索してください。</p></div>}
-          </div>
-          <div className="data-note"><span>ⓘ</span><p>施設情報はOpenStreetMapなどの公開データをもとにしています。</p></div>
-        </aside>
-
-        <div className={mapType === "list" ? "map-area list-mode" : "map-area"}>
-          <div className="map-canvas" aria-label="関東地方のスーパーチャージャーマップ">
-            <div className="water-label">東京湾</div>
-            <div className="land land-main" />
-            <div className="land land-peninsula" />
-            <div className="road road-one" />
-            <div className="road road-two" />
-            <div className="road road-three" />
-            <span className="map-label tokyo">東京都</span>
-            <span className="map-label saitama">埼玉県</span>
-            <span className="map-label chiba">千葉県</span>
-            <span className="map-label kanagawa">神奈川県</span>
-            {filtered.map((site) => (
-              <button
-                key={site.id}
-                className={selected.id === site.id ? `marker selected ${statusClass[site.status]}` : `marker ${statusClass[site.status]}`}
-                style={{ left: `${site.x}%`, top: `${site.y}%` }}
-                onClick={() => selectSite(site.id)}
-                aria-label={`${site.name}、${site.status}`}
-              >
-                <span className="bolt">ϟ</span>
-                {site.heading > 0 && <span className="marker-count">{site.heading}</span>}
-              </button>
-            ))}
-            <button className="current-location" aria-label="現在地"><span /></button>
-            <div className="map-controls">
-              <button aria-label="拡大">＋</button>
-              <button aria-label="縮小">−</button>
-            </div>
-            <button className="recenter"><span>⌖</span> このエリアを再検索</button>
-            <div className="map-legend">
-              <span><i className="is-open" />空きあり</span>
-              <span><i className="is-medium" />やや混雑</span>
-              <span><i className="is-busy" />混雑</span>
-            </div>
-            <div className="map-credit">© OpenStreetMap contributors</div>
-          </div>
-
-          {detailOpen && (
-            <aside className="detail-panel">
-              <button className="close-detail" onClick={() => setDetailOpen(false)} aria-label="詳細を閉じる">×</button>
-              <div className="detail-scroll">
-                <div className="eyebrow"><span className={`status-dot ${statusClass[selected.status]}`} /> {selected.status}</div>
-                <h1>{selected.name}</h1>
-                <p className="address">{selected.address}</p>
-                <button className="route-link">ルートを表示 <span>↗</span></button>
-
-                <div className="spec-grid">
-                  <div><span>ストール数</span><strong>{selected.stalls}<small>基</small></strong></div>
-                  <div><span>最大出力</span><strong>{selected.power}<small>kW</small></strong></div>
-                  <div><span>利用対象</span><strong className="small-value">Tesla</strong></div>
-                </div>
-
-                <section className="crowd-card">
-                  <div className="section-title"><div><span className="pulse-dot" />アプリ利用状況</div><small>{selected.updated} 更新</small></div>
-                  <div className="crowd-numbers">
-                    <div><span>向かっている</span><strong>{selected.heading}<small>台</small></strong></div>
-                    <div><span>15分以内に到着</span><strong>{selected.eta15}<small>台</small></strong></div>
-                    <div><span>充電中</span><strong>{selected.charging}<small>台</small></strong></div>
-                  </div>
-                  <p className="privacy-note"><span>ⓘ</span> Charge Scout利用者の匿名集計です。Tesla全体の台数ではありません。</p>
-                </section>
-
-                <section className="arrival-section">
-                  <div className="section-title"><div>到着予定の内訳</div></div>
-                  <div className="arrival-row"><span>〜15分</span><div className="bar"><i style={{ width: `${Math.max(8, selected.eta15 * 22)}%` }} /></div><strong>{selected.eta15}</strong></div>
-                  <div className="arrival-row"><span>15〜30分</span><div className="bar"><i style={{ width: `${Math.max(5, (selected.heading - selected.eta15) * 18)}%` }} /></div><strong>{Math.max(0, selected.heading - selected.eta15)}</strong></div>
-                  <div className="arrival-row"><span>30分〜</span><div className="bar"><i style={{ width: "4%" }} /></div><strong>0</strong></div>
-                </section>
+        <div className="app-content">
+          {screen === "search" && (
+            <div className="screen search-screen">
+              <div className="intro">
+                <p className="overline">NEARBY SUPERCHARGERS</p>
+                <h2>近くの充電スポット</h2>
+                <p>待ち時間を確認して、到着した施設の列に並べます。</p>
               </div>
-
-              <div className="detail-action">
-                {registered ? (
-                  <div className="registered-state"><span>✓</span><div><strong>向かっています</strong><small>到着予定：約{eta}後</small></div><button onClick={() => setRegistered(false)}>取消</button></div>
-                ) : (
-                  <button className="go-button" onClick={() => setModalOpen(true)}><span>➤</span> この施設へ向かう</button>
-                )}
-                <p>Tesla連携後は到着・充電開始を自動判定できます</p>
+              <div className="search-box"><span>⌕</span><input aria-label="施設を検索" defaultValue="現在地の近く" readOnly /><button>現在地</button></div>
+              <div className="result-label"><strong>近い順</strong><span>3件</span></div>
+              <div className="station-list">
+                {stations.map((station) => (
+                  <button key={station.id} className="station-card" onClick={() => setScreen("station")} data-testid={station.id === 1 ? "nearest-station" : undefined}>
+                    <div className="station-top"><span className={`availability ${station.tone}`}><i />{station.tone === "open" ? "空きあり" : "満車"}</span><strong>{station.distance}</strong></div>
+                    <h3>{station.name}</h3><p>{station.address}</p>
+                    <div className="station-metrics"><span><b>{station.stalls}</b><small>使用中</small></span><span><b>{station.wait === 0 ? "なし" : `約${station.wait}分`}</b><small>待ち時間</small></span><span><b>{station.ahead}人</b><small>待ち列</small></span></div>
+                    <span className="card-arrow">›</span>
+                  </button>
+                ))}
               </div>
-            </aside>
+              <p className="list-note">待ち時間は利用者の入力をもとにした目安です。</p>
+            </div>
+          )}
+
+          {screen === "station" && (
+            <div className="screen station-screen">
+              <div className="station-hero">
+                <span className="availability busy"><i />現在満車</span>
+                <h2>東京 有明</h2><p>東京都江東区有明2丁目</p>
+                <div className="distance-row"><span>現在地から 1.4 km</span><button>Google Maps ↗</button></div>
+              </div>
+              <div className="queue-summary">
+                <p>現在の待ち状況</p>
+                <div><span><strong>3</strong>人<small>待っています</small></span><span><strong>約25</strong>分<small>待ち時間の目安</small></span></div>
+              </div>
+              <div className="stall-row"><div><span className="stall-icon">ϟ</span><p><strong>8ストール</strong><small>すべて使用中</small></p></div><span>250 kW</span></div>
+              <div className="how-card"><strong>並んだあとの流れ</strong><ol><li><span>1</span>順番と待ち時間をこの画面で確認</li><li><span>2</span>順番の5分前に画面でお知らせ</li><li><span>3</span>呼ばれたら5分以内に充電開始</li></ol></div>
+              <button className="primary-button" data-testid="join-queue" onClick={() => setScreen("join")}>この待ち列に参加する</button>
+              <p className="button-note">参加に必要なのはニックネームだけです</p>
+            </div>
+          )}
+
+          {screen === "join" && (
+            <div className="screen join-screen">
+              <div className="modal-art"><span>4</span></div>
+              <p className="overline">JOIN THE QUEUE</p><h2>待ち列に参加</h2>
+              <p className="screen-lead">あなたを見分けるためのニックネームを入力してください。</p>
+              <label className="field-label" htmlFor="nickname">ニックネーム</label>
+              <input id="nickname" className="nickname-input" data-testid="nickname" placeholder="例：白いModel 3" value={nickname} onChange={(event) => setNickname(event.target.value)} autoFocus />
+              <div className="privacy-box"><span>◌</span><p><strong>電話番号は不要です</strong><small>今回はSMS通知を使わず、この画面で順番をお知らせします。</small></p></div>
+              <div className="join-preview"><span>あなたの順番</span><strong>4番目</strong><span>待ち時間</span><strong>約25分</strong></div>
+              <button className="primary-button" data-testid="confirm-join" disabled={!nickname.trim()} onClick={() => setScreen("waiting")}>参加する</button>
+              <button className="text-button" onClick={() => setScreen("station")}>キャンセル</button>
+            </div>
+          )}
+
+          {screen === "waiting" && <QueueStatus nickname={nickname || "白いModel 3"} ahead={3} minutes={25} tone="waiting" onLeave={reset} />}
+          {screen === "soon" && <QueueStatus nickname={nickname || "白いModel 3"} ahead={1} minutes={5} tone="soon" onLeave={reset} />}
+
+          {screen === "turn" && (
+            <div className="screen turn-screen">
+              <div className="turn-rings"><div><span>あなたの</span><strong>番です!</strong></div></div>
+              <h2>充電を開始してください</h2><p>空いたストールへ移動し、<br />ケーブルを接続してください。</p>
+              <div className="limit-card"><span>受付の残り時間</span><strong>{countdown}</strong><small>5分を過ぎると待ち列から自動で削除されます</small></div>
+              <button className="primary-button pulse-button" data-testid="started-charging" onClick={() => setScreen("duration")}><span>ϟ</span>充電を開始しました！</button>
+              <button className="text-button danger-text" onClick={reset}>充電できないので列を抜ける</button>
+            </div>
+          )}
+
+          {screen === "duration" && (
+            <div className="screen duration-screen">
+              <div className="charging-icon">ϟ</div><p className="overline">CHARGING STARTED</p><h2>あと何分充電しますか？</h2>
+              <p className="screen-lead">次の人の待ち時間を計算するため、予定を教えてください。あとから変更できます。</p>
+              <div className="duration-options">{[20, 30, 40, 50].map((value) => <button key={value} data-testid={value === 30 ? "duration-30" : undefined} className={duration === value ? "selected" : ""} onClick={() => setDuration(value)}><strong>{value}</strong><small>分</small></button>)}</div>
+              <div className="finish-estimate"><span>終了予定</span><strong>10:{11 + duration}</strong></div>
+              <button className="primary-button" data-testid="confirm-duration" onClick={() => setScreen("charging")}>この時間で開始</button>
+            </div>
+          )}
+
+          {screen === "charging" && (
+            <div className="screen charging-screen">
+              <div className="charging-orbit"><span>ϟ</span></div><span className="live-label"><i />充電中</span>
+              <h2>充電しています</h2><p>東京 有明 · ストール 04</p>
+              <div className="remaining-time"><span>終了予定まで</span><strong>{duration - 1}<small>分</small> 48<small>秒</small></strong><div><i style={{ width: "42%" }} /></div><small>10:{11 + duration}ごろ終了予定</small></div>
+              <div className="charge-stats"><span><strong>46%</strong><small>バッテリー</small></span><span><strong>171 kW</strong><small>充電速度</small></span></div>
+              <button className="secondary-button" data-testid="finish-charging" onClick={() => setScreen("complete")}>充電が終わりました</button>
+              <button className="text-button">充電時間を変更</button>
+            </div>
+          )}
+
+          {screen === "complete" && (
+            <div className="screen complete-screen">
+              <div className="complete-check"><span>✓</span></div><p className="overline">CHARGE COMPLETE</p><h2>充電完了、おつかれさまでした</h2>
+              <p>待ち列から退出しました。<br />次の方に順番をお知らせしています。</p>
+              <div className="thanks-card"><span>今回の充電時間</span><strong>28分</strong><span>次の人の待ち時間</span><strong>約15分</strong></div>
+              <button className="primary-button" onClick={reset}>近くの充電スポットへ</button>
+              <p className="safe-drive">Have a safe drive.</p>
+            </div>
           )}
         </div>
+
+        {(screen === "waiting" || screen === "soon") && <button className="demo-next" data-testid="advance-demo" onClick={advanceDemo}><span>MOCK</span> 時間を進める →</button>}
+        <div className="home-indicator" />
       </section>
 
-      {modalOpen && (
-        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setModalOpen(false)}>
-          <div className="modal" role="dialog" aria-modal="true" aria-labelledby="intent-title">
-            <button className="modal-close" onClick={() => setModalOpen(false)}>×</button>
-            <div className="modal-icon">➤</div>
-            <p className="modal-kicker">目的地を登録</p>
-            <h2 id="intent-title">{selected.name}へ向かう</h2>
-            <label>利用する車両<select value={vehicle} onChange={(event) => setVehicle(event.target.value)}><option>Model 3 · 72%</option><option>Model Y · 48%</option></select></label>
-            <fieldset><legend>到着予定</legend><div className="eta-options">{["15分", "30分", "45分", "60分"].map((time) => <button type="button" key={time} className={eta === time ? "active" : ""} onClick={() => setEta(time)}>{time}</button>)}</div></fieldset>
-            <button className="confirm-button" onClick={() => { setRegistered(true); setModalOpen(false); }}>登録して出発する</button>
-            <p className="modal-note">登録は3時間後に自動で終了します。正確な車両位置は他の利用者には表示されません。</p>
-          </div>
-        </div>
-      )}
-
-      {connectOpen && (
-        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setConnectOpen(false)}>
-          <div className="modal connect-modal" role="dialog" aria-modal="true">
-            <button className="modal-close" onClick={() => setConnectOpen(false)}>×</button>
-            <div className="tesla-connect-mark">T</div>
-            <p className="modal-kicker">TESLA FLEET API</p>
-            <h2>Teslaと安全に連携</h2>
-            <p className="connect-copy">Tesla公式ページでログインします。パスワードがCharge Scoutに共有されることはありません。</p>
-            <div className="permission-list"><span>✓ 車両とバッテリー状態</span><span>✓ 許可時のみ車両位置</span><span>✓ いつでも連携解除</span></div>
-            <button className="confirm-button" onClick={() => setConnectOpen(false)}>Tesla公式ページへ進む <span>↗</span></button>
-            <p className="modal-note">これはデモ画面です。実運用にはTesla Partner登録とOAuth設定が必要です。</p>
-          </div>
-        </div>
-      )}
+      <aside className="flow-rail" aria-label="Mockの流れ">
+        <p>FLOW</p>
+        {["近くの施設を選ぶ", "ニックネームで参加", "順番を待つ", "5分前のお知らせ", "充電開始・完了"].map((item, index) => {
+          const activeIndex = screen === "search" || screen === "station" ? 0 : screen === "join" ? 1 : screen === "waiting" ? 2 : screen === "soon" ? 3 : 4;
+          return <div key={item} className={index <= activeIndex ? "active" : ""}><span>{String(index + 1).padStart(2, "0")}</span><strong>{item}</strong></div>;
+        })}
+      </aside>
     </main>
   );
+}
+
+function QueueStatus({ nickname, ahead, minutes, tone, onLeave }: { nickname: string; ahead: number; minutes: number; tone: "waiting" | "soon"; onLeave: () => void }) {
+  return <div className={`screen queue-screen ${tone}`}>
+    {tone === "soon" && <div className="notice-banner"><span>!</span><p><strong>まもなく順番です</strong><small>5分以内に施設へお戻りください</small></p></div>}
+    <p className="overline">YOUR QUEUE</p><h2>{nickname}<small>さん</small></h2>
+    <div className="position-orbit"><span>現在</span><strong>{ahead + 1}</strong><small>番目</small></div>
+    <div className="queue-facts"><div><span>あなたの前</span><strong>{ahead}<small>人</small></strong></div><div><span>待ち時間の目安</span><strong>{minutes}<small>分</small></strong></div></div>
+    <div className="queue-progress"><div><i style={{ width: tone === "soon" ? "82%" : "28%" }} /></div><p><span>参加</span><span>あと{tone === "soon" ? "少し" : "約25分"}</span><span>あなたの番</span></p></div>
+    <div className="stay-card"><span>{tone === "soon" ? "⌖" : "☕"}</span><p><strong>{tone === "soon" ? "施設の近くでお待ちください" : "車内や施設内でお待ちください"}</strong><small>{tone === "soon" ? "順番になると5分の受付時間が始まります。" : "画面を閉じても列には残ります。順番の5分前にお知らせします。"}</small></p></div>
+    <button className="leave-button" onClick={onLeave}>待ち列から抜ける</button>
+  </div>;
 }
