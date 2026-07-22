@@ -6,9 +6,10 @@ const root = new URL("../", import.meta.url);
 const read = (path) => readFile(new URL(path, root), "utf8");
 
 test("スパQの入口画面・待ち列画面・安全な動線がある", async () => {
-  const [landing, queuePage, layout, packageJson, realtimeMigration, realtimeClient, vercelConfig] = await Promise.all([
+  const [landing, queuePage, shareDialog, layout, packageJson, realtimeMigration, realtimeClient, vercelConfig] = await Promise.all([
     read("app/page.tsx"),
     read("app/search/page.tsx"),
+    read("app/components/share-qr-button.tsx"),
     read("app/layout.tsx"),
     read("package.json"),
     read("supabase/migrations/20260722020000_public_realtime_signal.sql"),
@@ -20,6 +21,7 @@ test("スパQの入口画面・待ち列画面・安全な動線がある", asyn
   assert.match(landing, /使い方を見る/);
   assert.match(landing, /charge-queue-mock\.mp4/);
   assert.match(landing, /href="\/search"/);
+  assert.match(landing, /ShareQrButton/);
   assert.match(queuePage, /api\/queue\/join/);
   assert.match(queuePage, /api\/queue\/me/);
   assert.match(queuePage, /api\/queue\/duration/);
@@ -32,6 +34,10 @@ test("スパQの入口画面・待ち列画面・安全な動線がある", asyn
   assert.match(queuePage, /className="brand" href="\/"/);
   assert.match(queuePage, /スパQのホームへ戻る/);
   assert.match(queuePage, /terminalTransitionRef\.current/);
+  assert.match(queuePage, /ShareQrButton/);
+  assert.match(shareDialog, /知らなかった人に共有する/);
+  assert.match(shareDialog, /share-supa-q-qr\.png/);
+  assert.match(shareDialog, /aria-modal="true"/);
   assert.doesNotMatch(queuePage, /advance-demo|MOCK/);
   assert.doesNotMatch(queuePage, /Google Maps|現在地から|近い順/);
   assert.match(layout, /lang="ja"/);
@@ -62,11 +68,13 @@ test("Route HandlerとPWAの構成ファイルが揃っている", async () => {
     "supabase/migrations/20260722010000_private_realtime_broadcast.sql",
     "supabase/migrations/20260722020000_public_realtime_signal.sql",
     "app/search/page.tsx",
+    "app/components/share-qr-button.tsx",
     "supabase/seed/20260722_japan_superchargers.sql",
     ".env.example",
     "vercel.json",
     "public/manifest.webmanifest",
     "public/charge-queue-mock.mp4",
+    "public/share-supa-q-qr.png",
     "public/OneSignalSDKWorker.js",
   ];
   await Promise.all(required.map((path) => access(new URL(path, root))));
