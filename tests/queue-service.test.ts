@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { InMemoryQueueStore, emptySlot, setQueueStoreForTests, type SiteRecord } from "../lib/server/db";
-import { completeQueue, getMyQueue, joinQueue, setDuration, skipWaitAndStartQueue, startQueue } from "../lib/server/queue-service";
+import { completeQueue, getMyQueue, joinQueue, processQueue, setDuration, skipWaitAndStartQueue, startQueue } from "../lib/server/queue-service";
 
 const now = new Date("2026-07-22T06:20:00.000Z");
 const site: SiteRecord = {
@@ -87,6 +87,25 @@ test("同一施設の永続冪等キーは参加を二重登録せず、body違�
     assert.equal(duplicate.entryId, first.entryId);
     assert.equal(duplicate.token, first.token);
     await assert.rejects(() => joinQueue({ ...input, nickname: "別の入力" }), /同じ操作/);
+  } finally {
+    setQueueStoreForTests(undefined);
+  }
+});
+
+test("Cronはエントリーが存在する施設だけを処理する", async () => {
+  const store = new InMemoryQueueStore();
+  const activeSite = { ...site, id: "00000000-0000-4000-8000-000000000010" };
+  store.addSite(activeSite, [emptySlot("slot-active", "occupied")]);
+  for (let index = 0; index < 151; index += 1) {
+    store.addSite({ ...site, id: `inactive-${index}`, name: `未稼働施設${index}` }, [emptySlot(`slot-inactive-${index}`, "unknown")]);
+  }
+  setQueueStoreForTests(store);
+  try {
+    await joinQueue({ siteId: activeSite.id, nickname: "稼働中", siteIsFull: true, acceptedTerms: true, termsVersion: "2026-07-22", now });
+    const result = await processQueue(new Date(now.getTime() + 1_000));
+    assert.equal(result.sites, 1);
+    assert.equal(result.expired, 0);
+    assert.equal(result.autoCompleted, 0);
   } finally {
     setQueueStoreForTests(undefined);
   }

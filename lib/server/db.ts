@@ -37,6 +37,8 @@ export interface QueueTransaction {
 
 export interface QueueStore {
   listSites(): Promise<SiteRecord[]>;
+  /** Facilities that currently have at least one active queue entry. */
+  listActiveSiteIds(): Promise<string[]>;
   lookupEntry(entryId: string): Promise<{ siteId: string; managementTokenHash: Uint8Array } | null>;
   transaction<T>(siteId: string, fn: (tx: QueueTransaction) => Promise<T> | T, options?: { lock?: boolean }): Promise<T>;
 }
@@ -70,6 +72,17 @@ export class PostgresQueueStore implements QueueStore {
         normalized_search_text, stall_count, default_charge_minutes, queue_enabled, queue_version, queue_started_at
         from public.charging_sites order by name`);
       return result.rows.map(siteFromRow);
+    } catch {
+      throw new ApiError("SERVER_TEMPORARY_ERROR");
+    }
+  }
+
+  async listActiveSiteIds(): Promise<string[]> {
+    try {
+      const result = await this.pool.query<{ charging_site_id: string }>(
+        "select distinct charging_site_id from public.queue_entries",
+      );
+      return result.rows.map((row) => row.charging_site_id);
     } catch {
       throw new ApiError("SERVER_TEMPORARY_ERROR");
     }
@@ -210,6 +223,11 @@ export class InMemoryQueueStore implements QueueStore {
     list.push(cloneEntry(entry));
   }
   async listSites(): Promise<SiteRecord[]> { return [...this.sites.values()].map((x) => ({ ...x })); }
+  async listActiveSiteIds(): Promise<string[]> {
+    return [...this.entries.entries()]
+      .filter(([, entries]) => entries.length > 0)
+      .map(([siteId]) => siteId);
+  }
   async lookupEntry(entryId: string): Promise<{ siteId: string; managementTokenHash: Uint8Array } | null> {
     for (const [siteId, entries] of this.entries) {
       const entry = entries.find((candidate) => candidate.id === entryId);

@@ -321,12 +321,34 @@ export async function registerPushSubscription(entryId: string, token: string, s
 
 export interface CronResult { sites: number; expired: number; autoCompleted: number; notifications: number; }
 type ClaimedPush = PushMessage & { siteId: string; entryId: string; claimedAt: Date };
+
+const CRON_SITE_CONCURRENCY = 4;
+
+async function forEachWithConcurrency<T>(
+  values: readonly T[],
+  concurrency: number,
+  operation: (value: T) => Promise<void>,
+): Promise<void> {
+  let nextIndex = 0;
+  const workers = Array.from({ length: Math.min(concurrency, values.length) }, async () => {
+    while (nextIndex < values.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      await operation(values[index]);
+    }
+  });
+  await Promise.all(workers);
+}
+
 export async function processQueue(now = new Date()): Promise<CronResult> {
-  const sites = await listSites();
-  const result: CronResult = { sites: sites.length, expired: 0, autoCompleted: 0, notifications: 0 };
+  // Completed, cancelled and expired entries are deleted, so queue_entries is
+  // the authoritative and inexpensive list of facilities that need a tick.
+  // This avoids opening a transaction for every facility when queues are idle.
+  const siteIds = await getQueueStore().listActiveSiteIds();
+  const result: CronResult = { sites: siteIds.length, expired: 0, autoCompleted: 0, notifications: 0 };
   const pushes: ClaimedPush[] = [];
-  for (const site of sites) {
-    await getQueueStore().transaction(site.id, async (tx) => {
+  await forEachWithConcurrency(siteIds, CRON_SITE_CONCURRENCY, async (siteId) => {
+    await getQueueStore().transaction(siteId, async (tx) => {
       let changed = false;
       for (const entry of [...tx.entries]) {
         if (isCallExpired(entry, now)) {
@@ -346,7 +368,7 @@ export async function processQueue(now = new Date()): Promise<CronResult> {
       if (changed) { applyRecalculation(tx, now); tx.bumpVersion(); }
       if (changed && !tx.entries.some((entry) => entry.status === "waiting" || entry.status === "notified" || entry.status === "called")) tx.site.queueStartedAt = null;
     });
-  }
+  });
   await Promise.all(pushes.map(async (push) => {
     let delivered = false;
     try { delivered = await sendQueuePush(push); } catch { delivered = false; }
