@@ -3,7 +3,7 @@
 ## 採用サービス
 
 - Vercel: Next.jsの配信、Route Handler
-- Supabase: Postgres、migration、private Realtime Broadcast
+- Supabase: Postgres、migration、public Realtime Broadcast（再取得の合図のみ）
 - OneSignal: ブラウザのWeb Push
 - Cloudflare Turnstile: 一般公開時に任意で追加するCAPTCHA
 - cron-job.org: 無料の外部スケジューラー（毎分の期限処理・通知判定）
@@ -81,11 +81,11 @@ GitHub Actionsのscheduleは最短5分で、負荷により遅延する可能性
 
 ## Supabase Realtimeの運用設定
 
-1. `20260722010000_private_realtime_broadcast.sql`までmigrationを適用する。
-2. Supabase DashboardのRealtime Settingsで「Allow public access」を無効にし、private channelだけを許可する。
-3. `realtime.messages`に作られた`SELECT TO anon` policyを確認する。`INSERT TO anon` policyは追加しない。
+1. `20260722020000_public_realtime_signal.sql`までmigrationを適用する。
+2. Supabase DashboardのRealtime Settingsで「Allow public access」を有効にする。
+3. Broadcastは未認証の再取得合図に限定し、個人情報や待ち列状態をpayloadへ追加しない。
 4. 2つのブラウザで同じ施設を開き、片方の待ち列操作後にもう片方が再取得することを確認する。
-5. ブラウザのConsoleからBroadcast送信を試み、拒否されることを確認する。切断時は10〜15秒のPollingで最新化されることも確認する。
+5. 不正なBroadcastで画面値が直接変わらないことと、切断時は15秒のPollingで最新化されることを確認する。
 
 この設定は利用者ログインを作らない。`anon`はSupabase接続上の匿名ロールであり、ユーザーアカウントや履歴テーブルを作成しない。
 

@@ -9,7 +9,7 @@
 - 待ち時間・状態遷移の業務ロジックはNext.jsサーバー側TypeScriptが担当する。DBは状態の保存、制約、インデックス、施設単位の行ロックを担う。
 - ブラウザから基礎テーブルを直接参照・更新しない。すべての操作はRoute Handlerを経由する。
 
-実行用migrationは[20260722000000_initial_queue_schema.sql](/Users/haruki.shimo/Documents/tesla_supercharger/supabase/migrations/20260722000000_initial_queue_schema.sql)と、private Realtime用の[20260722010000_private_realtime_broadcast.sql](/Users/haruki.shimo/Documents/tesla_supercharger/supabase/migrations/20260722010000_private_realtime_broadcast.sql)である。
+実行用migrationは[20260722000000_initial_queue_schema.sql](/Users/haruki.shimo/Documents/tesla_supercharger/supabase/migrations/20260722000000_initial_queue_schema.sql)、履歴上のprivate設定、現在仕様へ切り替える[20260722020000_public_realtime_signal.sql](/Users/haruki.shimo/Documents/tesla_supercharger/supabase/migrations/20260722020000_public_realtime_signal.sql)である。
 
 ## 2. ER構造
 
@@ -156,7 +156,7 @@ erDiagram
 - `GET /api/sites`と`GET /api/sites/:siteId/summary`は、Route Handlerが安全な項目だけを返す。
 - 待ち列の本人確認、書き込み、施設単位の`SELECT ... FOR UPDATE`は、`SUPABASE_DATABASE_URL`を持つサーバー側TypeScriptだけが行う。
 - Realtime Broadcastは`siteId`と`queueVersion`だけを送る。基礎テーブルの行・ニックネーム・管理トークンハッシュは配信しない。
-- `realtime.messages`はprivate channel用に、`anon`のBroadcast受信（SELECT）だけを許可する。ブラウザからのBroadcast送信（INSERT）は許可しない。
+- Realtimeはログイン不要のpublic channelを使う。Broadcastは未認証の再取得合図に限定し、基礎テーブルへのRLSは引き続き閉じる。
 
 ## 6. 更新責務
 
@@ -166,7 +166,7 @@ erDiagram
 | `POST /api/queue/join` | `queue_entries`、必要なら`site_slots` | 待ち人数0人から新規開始する時だけ満車確認と45分初期化 |
 | 開始・初回時間・延長・完了・退出API | `queue_entries`、`site_slots`、`queue_version` | 同一施設をロックし、TSで再計算後に保存 |
 | 外部スケジューラー | 期限・送信済み時刻・失効・自動完了 | 状態条件と送信済み時刻で冪等に実行 |
-| DB trigger | `updated_at`、private Realtimeの`queue_changed` | 待ち時間・状態遷移の業務ロジックを持たない。`queue_version`確定後の通知だけを送る |
+| DB trigger | `updated_at`、public Realtimeの`queue_changed` | 待ち時間・状態遷移の業務ロジックを持たない。`queue_version`確定後の再取得合図だけを送る |
 
 ## 7. 初期データ投入
 

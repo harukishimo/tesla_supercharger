@@ -216,6 +216,7 @@ export default function Home() {
   const pollRef = useRef<number | null>(null);
   const lastFailureRef = useRef<ApiFailure | null>(null);
   const knownQueueVersionRef = useRef(0);
+  const terminalTransitionRef = useRef(false);
   const pendingIdempotencyKeysRef = useRef(new Map<string, string>());
   const idempotencyKeyFor = (scope: string, fingerprint: unknown): string => {
     const key = `${scope}:${JSON.stringify(fingerprint)}`;
@@ -287,17 +288,20 @@ export default function Home() {
   }, []);
 
   const refreshQueue = useCallback(async () => {
-    if (!session) return;
+    if (!session || terminalTransitionRef.current) return;
     const currentFinishConfirmationExpiresAt = snapshot?.finishConfirmationExpiresAt;
     try {
       const result = await api<Snapshot>(`/api/queue/me?entryId=${encodeURIComponent(session.entryId)}`, {}, session.token);
+      if (terminalTransitionRef.current) return;
       knownQueueVersionRef.current = result.queueVersion;
       setSnapshot(result);
       setView((current) => current === "duration" || current === "extend" || current === "finish-confirm" ? current : toQueueView(result));
       if (result.status === "charging" && result.finishConfirmationExpiresAt && new Date(result.finishConfirmationExpiresAt).getTime() <= Date.now()) {
-        setAutoCompleted(true); clearStoredSession(); setSession(null); setView("complete");
+        terminalTransitionRef.current = true;
+        setAutoCompleted(true); clearStoredSession(); setSession(null); setSnapshot(null); setView("complete");
       }
     } catch (reason) {
+      if (terminalTransitionRef.current) return;
       const failure = reason as ApiFailure;
       if (failure.code === "ENTRY_NOT_FOUND" || failure.code === "MANAGEMENT_TOKEN_INVALID") {
         const expiredCall = view === "called";
@@ -322,7 +326,6 @@ export default function Home() {
     if (!site || !["detail", "waiting", "soon", "called", "charging", "finish-confirm", "extend"].includes(view)) return;
     return subscribeToQueue(site.id, (payload) => {
       if (payload.queueVersion <= knownQueueVersionRef.current) return;
-      knownQueueVersionRef.current = payload.queueVersion;
       if (session) void refreshQueue();
       else void fetchSummary(site);
     });
@@ -342,6 +345,7 @@ export default function Home() {
 
   const join = async (siteIsFull: boolean) => {
     if (!site || !nickname.trim() || !acceptedTerms) return;
+    terminalTransitionRef.current = false;
     setBusy(true); setError(null);
     const input = { siteId: site.id, nickname: nickname.trim(), siteIsFull, acceptedTerms: true, termsVersion: TERMS_VERSION, turnstileToken: turnstileToken || undefined };
     const keyFingerprint = { operation: "join", siteId: input.siteId, nickname: input.nickname, siteIsFull: input.siteIsFull, acceptedTerms: input.acceptedTerms, termsVersion: input.termsVersion };
@@ -373,8 +377,18 @@ export default function Home() {
   const skipWaitAndStartCharging = async () => { const next = await mutate("/api/queue/skip-start", {}); if (next) { setSkipStartOpen(false); setView("duration"); } };
   const setInitialDuration = async () => { const value = customDuration ? Number(customDuration) : duration; if (!Number.isInteger(value) || value < 5 || value > 120) { setError({ message: "充電時間は5〜120分の整数で入力してください。" }); return; } const next = await mutate("/api/queue/duration", { minutes: value }); if (next) { setDuration(value); setView("charging"); } };
   const extend = async () => { const value = customExtension ? Number(customExtension) : extensionMinutes; if (!Number.isInteger(value) || value < 5 || value > 120) { setError({ message: "延長時間は5〜120分の整数で入力してください。" }); return; } const next = await mutate("/api/queue/extend", { additionalMinutes: value }); if (next) { setExtensionMinutes(value); setView("charging"); } };
-  const complete = async () => { const next = await mutate("/api/queue/complete", {}); if (next) { clearStoredSession(); setSession(null); setAutoCompleted(false); setView("complete"); } };
-  const cancel = async () => { const next = await mutate("/api/queue/cancel", {}); if (next) { clearStoredSession(); setSession(null); setSnapshot(null); setCancelOpen(false); setView("left"); } };
+  const complete = async () => {
+    terminalTransitionRef.current = true;
+    const next = await mutate("/api/queue/complete", {});
+    if (!next) { terminalTransitionRef.current = false; return; }
+    clearStoredSession(); setSession(null); setSnapshot(null); setError(null); setAutoCompleted(false); setView("complete");
+  };
+  const cancel = async () => {
+    terminalTransitionRef.current = true;
+    const next = await mutate("/api/queue/cancel", {});
+    if (!next) { terminalTransitionRef.current = false; return; }
+    clearStoredSession(); setSession(null); setSnapshot(null); setError(null); setCancelOpen(false); setView("left");
+  };
   const enableNotifications = async () => {
     if (!session) return;
     const appId = process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID;

@@ -7,9 +7,9 @@ type RealtimeMessage = {
 };
 
 /**
- * Private, receive-only Supabase Realtime Broadcast subscriber. PostgreSQL is
- * the only production sender; the browser receives only a facility version and
- * then performs the normal Route Handler fetch. If Realtime is unavailable,
+ * Public Supabase Realtime Broadcast subscriber. Broadcast data is an untrusted
+ * wake-up signal only: the browser receives a facility version and then fetches
+ * authoritative state from the normal Route Handler. If Realtime is unavailable,
  * polling remains the source of synchronization.
  */
 export function subscribeToQueue(siteId: string, onChange: (payload: QueueChangedPayload) => void): () => void {
@@ -21,7 +21,6 @@ export function subscribeToQueue(siteId: string, onChange: (payload: QueueChange
   const topic = `realtime:site:${siteId}`;
   const socket = new WebSocket(websocketUrl);
   let reference = 0;
-  let latestVersion = 0;
   let lastDeliveredAt = 0;
   let pending: QueueChangedPayload | null = null;
   let deliveryTimer: number | null = null;
@@ -39,7 +38,7 @@ export function subscribeToQueue(siteId: string, onChange: (payload: QueueChange
     socket.close();
   };
   socket.addEventListener("open", () => {
-    send("phx_join", { config: { private: true, broadcast: { self: false, ack: true }, presence: { key: "" }, postgres_changes: [] }, access_token: publishableKey });
+    send("phx_join", { config: { private: false, broadcast: { self: false, ack: false }, presence: { key: "" }, postgres_changes: [] } });
     heartbeat = window.setInterval(() => send("heartbeat", {}, "phoenix"), 25_000);
   });
   socket.addEventListener("message", (event) => {
@@ -47,8 +46,7 @@ export function subscribeToQueue(siteId: string, onChange: (payload: QueueChange
       const message = JSON.parse(String(event.data)) as RealtimeMessage;
       if (message.event !== "broadcast" || message.payload?.event !== "queue_changed") return;
       const payload = message.payload.payload;
-      if (payload?.siteId !== siteId || !Number.isSafeInteger(payload.queueVersion) || payload.queueVersion <= 0 || payload.queueVersion <= latestVersion) return;
-      latestVersion = payload.queueVersion;
+      if (payload?.siteId !== siteId || !Number.isSafeInteger(payload.queueVersion) || payload.queueVersion <= 0) return;
       pending = payload;
       const deliver = () => {
         deliveryTimer = null;

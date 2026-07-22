@@ -6,12 +6,13 @@ const root = new URL("../", import.meta.url);
 const read = (path) => readFile(new URL(path, root), "utf8");
 
 test("スパQの入口画面・待ち列画面・安全な動線がある", async () => {
-  const [landing, queuePage, layout, packageJson, realtimeMigration, vercelConfig] = await Promise.all([
+  const [landing, queuePage, layout, packageJson, realtimeMigration, realtimeClient, vercelConfig] = await Promise.all([
     read("app/page.tsx"),
     read("app/search/page.tsx"),
     read("app/layout.tsx"),
     read("package.json"),
-    read("supabase/migrations/20260722010000_private_realtime_broadcast.sql"),
+    read("supabase/migrations/20260722020000_public_realtime_signal.sql"),
+    read("lib/client/realtime.ts"),
     read("vercel.json"),
   ]);
   assert.match(landing, /スパQ/);
@@ -30,13 +31,15 @@ test("スパQの入口画面・待ち列画面・安全な動線がある", asyn
   assert.match(queuePage, /remainingPercent/);
   assert.match(queuePage, /className="brand" href="\/"/);
   assert.match(queuePage, /スパQのホームへ戻る/);
+  assert.match(queuePage, /terminalTransitionRef\.current/);
   assert.doesNotMatch(queuePage, /advance-demo|MOCK/);
   assert.doesNotMatch(queuePage, /Google Maps|現在地から|近い順/);
   assert.match(layout, /lang="ja"/);
   assert.match(layout, /スパQ/);
   assert.match(realtimeMigration, /realtime\.send/);
-  assert.match(realtimeMigration, /for select/);
-  assert.doesNotMatch(realtimeMigration, /for insert\s+to anon/);
+  assert.match(realtimeMigration, /'site:' \|\| new\.id::text,\s*false/);
+  assert.match(realtimeClient, /private: false/);
+  assert.doesNotMatch(realtimeClient, /access_token: publishableKey/);
   assert.match(packageJson, /"next":/);
   assert.doesNotMatch(vercelConfig, /"crons"/);
 });
@@ -56,6 +59,7 @@ test("Route HandlerとPWAの構成ファイルが揃っている", async () => {
     "app/api/cron/process-queue/route.ts",
     "supabase/migrations/20260722000000_initial_queue_schema.sql",
     "supabase/migrations/20260722010000_private_realtime_broadcast.sql",
+    "supabase/migrations/20260722020000_public_realtime_signal.sql",
     "app/search/page.tsx",
     "supabase/seed/20260722_japan_superchargers.sql",
     ".env.example",
