@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { InstallAppButton } from "@/app/components/install-app-button";
 import { ShareQrButton } from "@/app/components/share-qr-button";
 
 export default function LandingPage() {
@@ -36,6 +37,7 @@ export default function LandingPage() {
         <span className="play-mark" aria-hidden="true">▶</span>
         使い方を見る
       </button>
+      <InstallAppButton className="landing-video-button" />
       <ShareQrButton className="landing-video-button" />
       <p className="landing-note">表示は参考値です。現地の案内と施設ルールを最優先してください。</p>
       <p className="landing-legal"><Link href="/terms">利用規約</Link><span aria-hidden="true">・</span><Link href="/privacy">プライバシーポリシー</Link></p>

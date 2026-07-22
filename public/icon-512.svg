@@ -1,1 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="#1b5948"/><circle cx="256" cy="250" r="152" fill="#caef86"/><path d="M283 99 184 269h66l-22 144 99-179h-66z" fill="#1b5948"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">スパQ</title>
+  <rect width="512" height="512" fill="#1B5948"/>
+  <circle cx="248" cy="240" r="142" fill="none" stroke="#CAEF86" stroke-width="56"/>
+  <path d="m340 332 56 56" fill="none" stroke="#CAEF86" stroke-width="56" stroke-linecap="round"/>
+  <path d="m276 124-88 144h65l-25 120 99-168h-67z" fill="#FFFFFF"/>
+</svg>

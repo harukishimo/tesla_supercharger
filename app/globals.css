@@ -41,6 +41,7 @@ a { color: var(--green); }
 .landing-video-button:hover { border-color: var(--green); background: #fff; }
 .play-mark { display: grid; place-items: center; width: 18px; height: 18px; padding-left: 1px; border-radius: 50%; background: var(--green); color: #fff; font-size: 8px; }
 .share-mark { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 5px; background: var(--green); color: #fff; font-size: 11px; line-height: 1; }
+.install-mark { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--green); color: #fff; font-size: 13px; font-weight: 900; line-height: 1; }
 .landing-note { color: var(--muted); font-size: 9px; line-height: 1.6; margin: 14px 0 0; text-align: center; }
 .landing-legal { display: flex; justify-content: center; gap: 7px; margin: auto 0 0; padding-top: 24px; color: #8a958e; font-size: 9px; }
 .landing-legal a { color: inherit; }
@@ -209,6 +210,18 @@ h2 { font-size: 16px; line-height: 1.3; margin: 0; letter-spacing: -.02em; }
 .share-qr-frame { width: min(100%, 248px); margin: 0 auto; padding: 16px; border: 1px solid var(--line); border-radius: 16px; background: #fff; box-shadow: 0 7px 22px rgba(23,32,29,.08); }
 .share-qr-frame img { display: block; width: 100%; height: auto; image-rendering: pixelated; }
 .share-modal-note { margin: 14px auto 0; color: var(--muted); font-size: 8px; line-height: 1.6; }
+
+.install-modal-backdrop { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; padding: 16px; background: rgba(23,32,29,.62); }
+.install-modal { width: min(100%, 410px); max-height: calc(100dvh - 32px); overflow-y: auto; position: relative; padding: 24px 20px 20px; border-radius: 18px; background: #fff; text-align: center; box-shadow: 0 20px 60px rgba(23,32,29,.34); }
+.install-modal-close { position: absolute; top: 11px; right: 12px; display: grid; place-items: center; width: 36px; height: 36px; border: 0; border-radius: 50%; background: var(--subtle); font-size: 23px; line-height: 1; }
+.install-modal h2 { padding: 0 30px; font-size: 20px; }
+.install-modal-lead { max-width: 330px; margin: 10px auto 16px; color: var(--muted); font-size: 10px; line-height: 1.65; }
+.install-guide-video { display: block; width: min(100%, 248px); max-height: min(50dvh, 440px); margin: 0 auto; border-radius: 16px; background: var(--green); aspect-ratio: 9 / 16; object-fit: contain; box-shadow: 0 8px 24px rgba(23,32,29,.14); }
+.install-steps { display: grid; gap: 7px; margin: 16px 0 0; padding: 0; list-style: none; text-align: left; counter-reset: install-step; }
+.install-steps li { counter-increment: install-step; padding: 10px 12px 10px 42px; position: relative; border-radius: 10px; background: var(--subtle); color: #526159; font-size: 9px; }
+.install-steps li::before { content: counter(install-step); position: absolute; left: 12px; top: 7px; display: grid; place-items: center; width: 23px; height: 23px; border-radius: 50%; background: var(--green); color: #fff; font-size: 9px; font-weight: 800; }
+.install-external-link { display: grid; place-items: center; text-decoration: none; }
+.install-modal-note { margin: 13px 2px 0; color: var(--muted); font-size: 8px; line-height: 1.6; }
 
 @media (min-width: 481px) { .app-shell, .landing-shell { min-height: min(100dvh, 920px); margin-top: max(0px, calc((100dvh - 920px) / 2)); box-shadow: 0 20px 60px rgba(39,56,47,.14); } }
 @media (max-width: 360px) { .app-header { padding: 0 10px; } .brand { font-size: 11px; } .screen { padding-left: 16px; padding-right: 16px; } .position-orbit { width: 138px; height: 138px; } .call-orbit { width: 145px; height: 145px; } }
