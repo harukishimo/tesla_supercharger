@@ -101,7 +101,7 @@ flowchart LR
 
 - Next.js App Router + TypeScriptのプロジェクト、Lint、型検査、テスト実行、production build。
 - サーバー専用DB接続と、公開してよい環境変数だけを分ける設定。
-- `.env.example`、Vercel設定、Vercel Cronの設定枠、運営者が行うデプロイ後確認手順。
+- `.env.example`、Vercel設定、無料外部スケジューラーの設定、運営者が行うデプロイ後確認手順。
 - 共通のエラー応答形式、HTTPヘッダー、秘密情報をマスクするログ方針。
 - `README.md`に、起動・検証・環境変数の設定手順を記載する。
 
@@ -193,7 +193,7 @@ HTTP、DB、Pushから独立したTypeScriptの待ち列計算と状態遷移を
 - `GET /api/sites`、施設概要・本人状態取得の、安全な表示用データ取得。
 - 256bit以上の管理トークン発行、SHA-256ハッシュ照合、トークン原文を返すのは参加直後の一度だけとする処理。
 - 施設行と対象スロットの`SELECT ... FOR UPDATE`、状態確認、TypeScript再計算、保存、`queue_version`更新を1トランザクションで行う処理。
-- Vercel Cronから呼ぶ期限処理。5分前通知、呼出5分失効、終了3分前確認、終了予定5分後の自動完了。
+- 外部スケジューラーから呼ぶ期限処理。5分前通知、呼出5分失効、終了3分前確認、終了予定5分後の自動完了。
 - Supabase Realtimeの施設単位`queue_changed` Broadcastと、OneSignalの3種類のPush送信。
 - Turnstile token検証、IP・施設単位のRate Limitの実装枠。
 
@@ -388,7 +388,7 @@ HTTP、DB、Pushから独立したTypeScriptの待ち列計算と状態遷移を
 本番反映は運営者が行う。AIは次を満たした引き継ぎ資料を作成し、運営者が確認してから反映する。
 
 - Purple Teamが「デプロイ引き継ぎ可」と判定している。
-- 反映するcommit、migration、seed、環境変数名、Vercel Cron設定が実装凍結記録と一致する。
+- 反映するcommit、migration、seed、環境変数名、外部スケジューラー設定が実装凍結記録と一致する。
 - Supabase、Vercel、OneSignal、Turnstileの本番設定を運営者が確認できる手順がある。未導入の任意機能は、機能を無効化した安全な挙動を確認する。
 - 利用規約・プライバシーポリシーの運営者情報と公開URLが確定している。
 - 本番seedを適用する運営者承認があり、対象施設に有効な待ち列がない。

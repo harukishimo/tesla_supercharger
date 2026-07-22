@@ -6,12 +6,13 @@ const root = new URL("../", import.meta.url);
 const read = (path) => readFile(new URL(path, root), "utf8");
 
 test("スパQの入口画面・待ち列画面・安全な動線がある", async () => {
-  const [landing, queuePage, layout, packageJson, realtimeMigration] = await Promise.all([
+  const [landing, queuePage, layout, packageJson, realtimeMigration, vercelConfig] = await Promise.all([
     read("app/page.tsx"),
     read("app/search/page.tsx"),
     read("app/layout.tsx"),
     read("package.json"),
     read("supabase/migrations/20260722010000_private_realtime_broadcast.sql"),
+    read("vercel.json"),
   ]);
   assert.match(landing, /スパQ/);
   assert.match(landing, /さっそく探す/);
@@ -37,6 +38,7 @@ test("スパQの入口画面・待ち列画面・安全な動線がある", asyn
   assert.match(realtimeMigration, /for select/);
   assert.doesNotMatch(realtimeMigration, /for insert\s+to anon/);
   assert.match(packageJson, /"next":/);
+  assert.doesNotMatch(vercelConfig, /"crons"/);
 });
 
 test("Route HandlerとPWAの構成ファイルが揃っている", async () => {

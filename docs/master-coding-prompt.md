@@ -90,7 +90,7 @@
 ### 技術構成
 
 - Next.js App Router + TypeScriptを使う。
-- Vercelで動くRoute HandlerとVercel Cronをサーバー処理として実装する。独立した常時稼働バックエンドは作らない。
+- Vercelで動くRoute Handlerと、外部スケジューラーから呼ばれるCron Routeをサーバー処理として実装する。独立した常時稼働バックエンドは作らない。
 - Supabase Postgresを施設・仮想ストール・有効な待ち列の保存先として実装する。
 - 待ち時間計算と状態遷移の業務ロジックは、サーバー側TypeScriptの純粋関数として実装する。SQLに業務ロジックを埋め込まない。
 - Supabase Realtime Broadcastは、施設単位の「状態が変わった」という通知にだけ使う。payloadへ個人情報を入れない。
@@ -198,7 +198,7 @@ AIは、次を実値なしで作成・更新する。
 2. READMEの「運営者が行う設定・反映手順」
    - Supabase projectでmigrationとseedを適用する順序、期待値（152施設・752ストール・752仮想スロット）、確認SQL。
    - VercelでDevelopment / Preview / Productionごとに設定する環境変数名。秘密値を`NEXT_PUBLIC_*`へ入れない注意。
-   - `vercel.json`のCron設定と、Vercelプラン上の1分Cron要件。
+   - `vercel.json`にCronを登録せず、外部スケジューラーから1分ごとに呼ぶ運用と、`CRON_SECRET`のBearer認証を確認する。
    - OneSignalのPreview / Production分離、Service Worker、通知許可の確認手順。
    - Cloudflare Turnstileの公開版設定と、Preview限定では未設定を許容する条件。
    - Vercelデプロイ後のスモークテスト手順と、失敗時の確認箇所。

@@ -165,7 +165,7 @@ erDiagram
 | 施設migration / seed | `charging_sites`、`site_slots` | 管理者PCでmigration作成・レビュー後に適用 |
 | `POST /api/queue/join` | `queue_entries`、必要なら`site_slots` | 待ち人数0人から新規開始する時だけ満車確認と45分初期化 |
 | 開始・初回時間・延長・完了・退出API | `queue_entries`、`site_slots`、`queue_version` | 同一施設をロックし、TSで再計算後に保存 |
-| Vercel Cron | 期限・送信済み時刻・失効・自動完了 | 状態条件と送信済み時刻で冪等に実行 |
+| 外部スケジューラー | 期限・送信済み時刻・失効・自動完了 | 状態条件と送信済み時刻で冪等に実行 |
 | DB trigger | `updated_at`、private Realtimeの`queue_changed` | 待ち時間・状態遷移の業務ロジックを持たない。`queue_version`確定後の通知だけを送る |
 
 ## 7. 初期データ投入

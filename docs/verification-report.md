@@ -7,11 +7,12 @@
 - Next.js App Router + TypeScript
 - ルート`/`のスパQ入口画面と`/search`の待ち列アプリ画面
 - Supabase Postgres用migration / seed（日本国内152施設・752ストール・752仮想site_slots）
-- TypeScript待ち時間計算、待ち列状態遷移、Route Handler、Vercel Cron
+- TypeScript待ち時間計算、待ち列状態遷移、Route Handler、外部Cronスケジューラー
 - Supabase private Realtime Broadcast（DB Triggerによる施設version通知）とPolling fallback
 - OneSignal Web Push（App ID・REST API Key設定時だけ有効。未設定時は画面内通知のみ）
 - 任意のCloudflare Turnstile、IP・施設単位の簡易Rate Limit、CSP/HTTPヘッダー
 - Vercel Firewall / WAFを主防御とする参加API保護の運用手順
+- Vercel Hobbyでも動作する無料外部スケジューラーの運用手順
 - 施設検索、満車確認、待機カウントダウン、呼出5分、初回30分、5〜120分入力、終了3分前の終了/延長、自動完了、利用規約・プライバシー画面
 
 ## 実行済みコマンド
@@ -39,7 +40,7 @@
 2. Supabase CLIでmigrationを適用し、seedを一度だけ実行する。期待値は152施設、合計752ストール、752仮想slot。
 3. Supabase Realtimeをprivate channel専用にし、migrationが作る受信専用policyとDB Triggerを確認する。OneSignal App / Service Worker、必要に応じてTurnstileも外部ダッシュボードで設定する。
 4. Vercel Firewall / WAFで`/api/queue/join`のIP単位Rate Limitを設定する。Function内の簡易制限だけを公開時の主防御にしない。
-5. Vercelへ接続し、`vercel.json`の1分Cronと`CRON_SECRET`を確認する。Hobbyプランでは高頻度Cronを利用できない。
+5. Vercelへ接続し、`vercel.json`にCronが登録されていないことを確認する。外部スケジューラーから`CRON_SECRET`付きで`/api/cron/process-queue`を毎分呼び、HTTP 200と実行履歴を確認する。
 6. Previewで検索、参加、退出、呼出、時間確定、完了、通知拒否、Realtime切断時のPollingをスモークテストする。
 
 本リポジトリの実装エージェントは、秘密情報設定、Supabase Cloud反映、OneSignal/Turnstile設定、Vercelデプロイを実行していない。

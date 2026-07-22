@@ -104,7 +104,7 @@ CronはPushのSubscription IDをローカル配列へコピーしてから外部
 
 ## 運用引き継ぎ
 
-本番前に、(1) `SUPABASE_DATABASE_URL` はDB専用のserver-side secretとして設定し、(2) `CRON_SECRET`をVercel Cronに設定、(3) Turnstileを公開運用では必ず設定、(4) OneSignal Preview/Production App ID・REST keyを分離、(5) Supabase RLSとRealtime publish policyを実DBで確認、(6) 監視へ429、503、Push失敗、Cron遅延、DB lock waitを送ること。ログ・監視にはnickname、token、Push subscription ID、DB URLを記録しない。
+本番前に、(1) `SUPABASE_DATABASE_URL` はDB専用のserver-side secretとして設定し、(2) `CRON_SECRET`をVercelと外部スケジューラーへ設定、(3) Turnstileを公開運用では必ず設定、(4) OneSignal Preview/Production App ID・REST keyを分離、(5) Supabase RLSとRealtime publish policyを実DBで確認、(6) 監視へ429、503、Push失敗、Cron遅延、DB lock waitを送ること。ログ・監視にはnickname、token、Push subscription ID、DB URLを記録しない。
 
 ## Purple Teamで再確認する項目
 
