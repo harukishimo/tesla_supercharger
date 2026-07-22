@@ -104,4 +104,4 @@ Web Pushを有効にする場合は、`NEXT_PUBLIC_ONESIGNAL_APP_ID`を設定し
 
 ## 正本資料
 
-実装範囲と変更ルールは[docs/implementation-plan.md](docs/implementation-plan.md)、DB契約は[docs/database-schema.md](docs/database-schema.md)、外部サービス設定は[docs/deployment-configuration.md](docs/deployment-configuration.md)、UI基準は[DESIGN.md](DESIGN.md)を参照してください。
+実装範囲と変更ルールは[docs/implementation-plan.md](docs/implementation-plan.md)、DB契約は[docs/database-schema.md](docs/database-schema.md)、外部サービス設定は[docs/deployment-configuration.md](docs/deployment-configuration.md)、Vercelへの設定・公開手順は[docs/vercel-deployment-runbook.md](docs/vercel-deployment-runbook.md)、UI基準は[DESIGN.md](DESIGN.md)を参照してください。

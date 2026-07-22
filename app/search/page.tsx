@@ -2,6 +2,7 @@
 /* eslint-disable react-hooks/set-state-in-effect -- effects synchronize API polling and browser session state. */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import Link from "next/link";
 import { subscribeToQueue } from "@/lib/client/realtime";
 
 const TERMS_VERSION = process.env.NEXT_PUBLIC_TERMS_VERSION ?? "2026-07-22";
@@ -40,6 +41,7 @@ type Snapshot = {
   expectedFinishAt: string | null;
   finishConfirmationExpiresAt: string | null;
   canStart: boolean;
+  canSkipStart: boolean;
   canSetDuration: boolean;
   canExtend: boolean;
   canComplete: boolean;
@@ -147,6 +149,27 @@ function minutesRemaining(value: string | null) {
   return Math.max(0, Math.ceil((new Date(value).getTime() - Date.now()) / 60_000));
 }
 
+function useCountdownSeconds(value: string | null) {
+  const targetTime = value ? new Date(value).getTime() : 0;
+  const getRemainingSeconds = useCallback(() => Math.max(0, Math.ceil((targetTime - Date.now()) / 1_000)), [targetTime]);
+  const [remainingSeconds, setRemainingSeconds] = useState(getRemainingSeconds);
+
+  useEffect(() => {
+    const update = () => setRemainingSeconds(getRemainingSeconds());
+    update();
+    const timer = window.setInterval(update, 1_000);
+    return () => window.clearInterval(timer);
+  }, [getRemainingSeconds]);
+
+  return remainingSeconds;
+}
+
+function formatCountdown(seconds: number) {
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  return `${minutes}:${String(remainder).padStart(2, "0")}`;
+}
+
 function useModalFocus(ref: RefObject<HTMLElement | null>, onClose: () => void) {
   useEffect(() => {
     const modal = ref.current;
@@ -188,6 +211,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<ApiFailure | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [skipStartOpen, setSkipStartOpen] = useState(false);
   const [autoCompleted, setAutoCompleted] = useState(false);
   const pollRef = useRef<number | null>(null);
   const lastFailureRef = useRef<ApiFailure | null>(null);
@@ -346,6 +370,7 @@ export default function Home() {
   };
 
   const startCharging = async () => { const next = await mutate("/api/queue/start", {}); if (next) setView("duration"); else if (lastFailureRef.current?.code === "CALL_EXPIRED") { clearStoredSession(); setSession(null); setView("expired"); } };
+  const skipWaitAndStartCharging = async () => { const next = await mutate("/api/queue/skip-start", {}); if (next) { setSkipStartOpen(false); setView("duration"); } };
   const setInitialDuration = async () => { const value = customDuration ? Number(customDuration) : duration; if (!Number.isInteger(value) || value < 5 || value > 120) { setError({ message: "充電時間は5〜120分の整数で入力してください。" }); return; } const next = await mutate("/api/queue/duration", { minutes: value }); if (next) { setDuration(value); setView("charging"); } };
   const extend = async () => { const value = customExtension ? Number(customExtension) : extensionMinutes; if (!Number.isInteger(value) || value < 5 || value > 120) { setError({ message: "延長時間は5〜120分の整数で入力してください。" }); return; } const next = await mutate("/api/queue/extend", { additionalMinutes: value }); if (next) { setExtensionMinutes(value); setView("charging"); } };
   const complete = async () => { const next = await mutate("/api/queue/complete", {}); if (next) { clearStoredSession(); setSession(null); setAutoCompleted(false); setView("complete"); } };
@@ -395,7 +420,7 @@ export default function Home() {
     <main className="app-shell">
       <header className="app-header">
         <button className="icon-button" onClick={back} aria-label="戻る" disabled={view === "search" || view === "complete" || view === "left" || view === "expired"}>‹</button>
-        <div className="brand" aria-label="スパQ"><span className="brand-mark" aria-hidden="true">Q</span><strong>スパQ</strong></div>
+        <Link className="brand" href="/" aria-label="スパQのホームへ戻る"><span className="brand-mark" aria-hidden="true">Q</span><strong>スパQ</strong></Link>
         <span className="header-spacer" aria-hidden="true" />
       </header>
       <div className="app-content">
@@ -406,7 +431,7 @@ export default function Home() {
         {view === "join" && site && <JoinScreen site={site} nickname={nickname} setNickname={setNickname} acceptedTerms={acceptedTerms} setAcceptedTerms={setAcceptedTerms} turnstileToken={turnstileToken} setTurnstileToken={setTurnstileToken} onSubmit={() => { if (summary?.waitingCount) void join(false); else setView("full-confirm"); }} onBack={back} busy={busy} />}
         {view === "full-confirm" && site && <FullConfirmScreen site={site} turnstileToken={turnstileToken} setTurnstileToken={setTurnstileToken} onConfirm={() => void join(true)} onBack={back} />}
         {view === "notify" && <NotifyScreen onEnable={() => void enableNotifications()} onLater={() => setView(toQueueView(snapshot))} busy={busy} available={Boolean(process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID)} />}
-        {(view === "waiting" || view === "soon") && snapshot && <WaitingScreen snapshot={snapshot} nickname={nickname} soon={view === "soon"} onCancel={() => setCancelOpen(true)} />}
+        {(view === "waiting" || view === "soon") && snapshot && <WaitingScreen snapshot={snapshot} nickname={nickname} soon={view === "soon"} onCancel={() => setCancelOpen(true)} onSkipStart={() => setSkipStartOpen(true)} busy={busy} />}
         {view === "called" && snapshot && <CalledScreen snapshot={snapshot} onStart={() => void startCharging()} onCancel={() => setCancelOpen(true)} busy={busy} />}
         {view === "duration" && <DurationScreen duration={duration} setDuration={setDuration} custom={customDuration} setCustom={setCustomDuration} expected={snapshot?.chargingStartedAt ? new Date(new Date(snapshot.chargingStartedAt).getTime() + (Number(customDuration) || duration) * 60_000) : null} onConfirm={() => void setInitialDuration()} busy={busy} />}
         {view === "charging" && snapshot && <ChargingScreen snapshot={snapshot} onComplete={() => void complete()} onFinishCheck={() => setView("finish-confirm")} busy={busy} />}
@@ -418,6 +443,7 @@ export default function Home() {
         {view === "recovery" && <RecoveryScreen onSearch={() => { setError(null); if (site) void fetchSummary(site); else setView("search"); }} />}
       </div>
       {cancelOpen && <CancelDialog busy={busy} onConfirm={() => void cancel()} onClose={() => setCancelOpen(false)} />}
+      {skipStartOpen && <SkipStartDialog busy={busy} onConfirm={() => void skipWaitAndStartCharging()} onClose={() => setSkipStartOpen(false)} />}
       <span className="sr-only">{title}</span>
     </main>
   );
@@ -474,13 +500,26 @@ function FullConfirmScreen({ site, turnstileToken, setTurnstileToken, onConfirm,
 
 function NotifyScreen({ onEnable, onLater, busy, available }: { onEnable: () => void; onLater: () => void; busy: boolean; available: boolean }) { return <section className="screen result-screen"><div className="result-mark">✓</div><p className="eyebrow">YOU ARE IN</p><h1>待ち列に参加しました</h1><p className="lead">順番の5分前と順番到来を、この画面でお知らせします。</p><div className="notice-card"><strong>{available ? "通知を受け取る（任意）" : "この環境ではWeb Pushを利用できません"}</strong><p>{available ? "ブラウザ通知を許可すると、画面を閉じていても気づきやすくなります。iPhone/iPadはホーム画面に追加すると通知を受け取れます。" : "待ち列画面を開いている間は画面内で状態を確認できます。通知なしでも待ち列は利用できます。"}</p></div>{available && <button className="primary-button" onClick={onEnable} disabled={busy}>{busy ? "設定しています…" : "通知を受け取る"}</button>}<button className={available ? "text-button" : "primary-button"} onClick={onLater}>{available ? "あとで" : "待機画面へ"}</button></section>; }
 
-function WaitingScreen({ snapshot, nickname, soon, onCancel }: { snapshot: Snapshot; nickname: string; soon: boolean; onCancel: () => void }) { const ahead = snapshot.aheadCount ?? 0; const wait = snapshot.estimatedWaitMinutes ?? 0; return <section className={`screen queue-screen ${soon ? "is-soon" : ""}`}>{soon && <div className="notice-banner"><strong>まもなく順番です</strong><span>施設付近へ戻ってください。順番になると5分の受付時間が始まります。</span></div>}<p className="eyebrow">YOUR QUEUE</p><h1>{nickname}<small>さんの待ち状況</small></h1><div className="position-orbit"><span>現在</span><strong>{snapshot.position ?? ahead + 1}</strong><small>番目</small></div><div className="queue-facts"><div><span>あなたの前</span><strong>{ahead}<small>人</small></strong></div><div><span>待ち時間の目安</span><strong>{wait}<small>分</small></strong></div></div><div className="estimate-row"><span>推定呼び出し時刻</span><strong>{formatDate(snapshot.estimatedStartAt)}</strong></div><div className="notice-card"><strong>現地を最優先にしてください</strong><p>表示している待ち時間は参考値です。実際の並び順や空き状況を現地で確認してください。</p></div><button className="text-button danger" onClick={onCancel}>待ち列から退出</button></section>; }
+function WaitingScreen({ snapshot, nickname, soon, onCancel, onSkipStart, busy }: { snapshot: Snapshot; nickname: string; soon: boolean; onCancel: () => void; onSkipStart: () => void; busy: boolean }) { const ahead = snapshot.aheadCount ?? 0; const wait = snapshot.estimatedWaitMinutes ?? 0; return <section className={`screen queue-screen ${soon ? "is-soon" : ""}`}>{soon && <div className="notice-banner"><strong>まもなく順番です</strong><span>施設付近へ戻ってください。順番になると5分の受付時間が始まります。</span></div>}<p className="eyebrow">YOUR QUEUE</p><h1>{nickname}<small>さんの待ち状況</small></h1><div className="position-orbit"><span>現在</span><strong>{snapshot.position ?? ahead + 1}</strong><small>番目</small></div><div className="queue-facts"><div><span>あなたの前</span><strong>{ahead}<small>人</small></strong></div><div><span>待ち時間の目安</span><strong>{wait}<small>分</small></strong></div></div><div className="estimate-row"><span>推定呼び出し時刻</span><strong>{formatDate(snapshot.estimatedStartAt)}</strong></div><div className="notice-card"><strong>現地を最優先にしてください</strong><p>表示している待ち時間は参考値です。実際の並び順や空き状況を現地で確認してください。</p></div>{snapshot.canSkipStart && <button className="secondary-button" onClick={onSkipStart} disabled={busy}>目の前で空きができた</button>}<button className="text-button danger" onClick={onCancel}>待ち列から退出</button></section>; }
 
 function CalledScreen({ snapshot, onStart, onCancel, busy }: { snapshot: Snapshot; onStart: () => void; onCancel: () => void; busy: boolean }) { return <section className="screen called-screen"><div className="call-orbit"><span>あなたの</span><strong>番です</strong></div><p className="eyebrow">YOUR TURN</p><h1>5分以内に充電を開始</h1><p className="lead">空いたストールへ移動し、ケーブルを接続してください。</p><div className="countdown-card"><span>受付の残り時間</span><strong>{minutesRemaining(snapshot.callExpiresAt)}<small>分</small></strong><p>5分を過ぎると待ち列から自動で退出します。</p></div><div className="notice-card"><strong>現地の状況を優先</strong><p>実際に空いていない、順番が違う場合は現地案内に従ってください。</p></div><button className="primary-button" onClick={onStart} disabled={busy}>{busy ? "開始を記録しています…" : "充電を開始しました"}</button><button className="text-button danger" onClick={onCancel}>充電できないので退出</button></section>; }
 
 function DurationScreen({ duration, setDuration, custom, setCustom, expected, onConfirm, busy }: { duration: number; setDuration: (value: number) => void; custom: string; setCustom: (value: string) => void; expected: Date | null; onConfirm: () => void; busy: boolean }) { return <section className="screen duration-screen"><div className="charging-icon">ϟ</div><p className="eyebrow">CHARGING STARTED</p><h1>何分充電しますか？</h1><p className="lead">次の人の待ち時間を計算するため、予定時間を入力してください。</p><div className="duration-options">{[20, 30, 40, 50].map((value) => <button type="button" key={value} className={!custom && duration === value ? "selected" : ""} onClick={() => { setDuration(value); setCustom(""); }}><strong>{value}</strong><small>分</small></button>)}</div><label className="field-label" htmlFor="duration">自由入力（5〜120分）</label><input id="duration" className="text-input" type="number" min={5} max={120} step={1} inputMode="numeric" value={custom} onChange={(event) => setCustom(event.target.value)} placeholder="30" /><div className="estimate-row"><span>終了予定</span><strong>{expected ? formatDate(expected.toISOString()) : "入力後に表示"}</strong></div><button className="primary-button" onClick={onConfirm} disabled={busy}>{busy ? "確定しています…" : "この時間で確定"}</button></section>; }
 
-function ChargingScreen({ snapshot, onComplete, onFinishCheck, busy }: { snapshot: Snapshot; onComplete: () => void; onFinishCheck: () => void; busy: boolean }) { const remaining = minutesRemaining(snapshot.expectedFinishAt); const due = remaining <= 3; return <section className="screen charging-screen"><div className="charging-orbit"><span>ϟ</span></div><span className="live-label"><i />充電中</span><h1>充電しています</h1><p className="lead">終了予定 {formatDate(snapshot.expectedFinishAt)}</p><div className="remaining-time"><span>終了予定まで</span><strong>{remaining}<small>分</small></strong><div><i style={{ width: `${Math.max(8, Math.min(100, 100 - remaining))}%` }} /></div></div><div className="notice-card"><strong>現地を最優先にしてください</strong><p>終了予定と待ち時間は参考値です。施設の案内に従って、充電が終わったら移動してください。</p></div><button className="primary-button" onClick={due ? onFinishCheck : onComplete} disabled={busy}>{busy ? "処理しています…" : due ? "終了・延長を選ぶ" : "充電が終わりました"}</button>{due && <button className="text-button" onClick={onFinishCheck}>終了3分前の確認を開く</button>}</section>; }
+function ChargingScreen({ snapshot, onComplete, onFinishCheck, busy }: { snapshot: Snapshot; onComplete: () => void; onFinishCheck: () => void; busy: boolean }) {
+  const remainingSeconds = useCountdownSeconds(snapshot.expectedFinishAt);
+  const scheduledSeconds = snapshot.chargingStartedAt && snapshot.expectedFinishAt
+    ? Math.max(1, Math.round((new Date(snapshot.expectedFinishAt).getTime() - new Date(snapshot.chargingStartedAt).getTime()) / 1_000))
+    : 1;
+  const remainingPercent = Math.max(0, Math.min(100, (remainingSeconds / scheduledSeconds) * 100));
+  const due = remainingSeconds <= 3 * 60;
+
+  useEffect(() => {
+    if (due && snapshot.canExtend) onFinishCheck();
+  }, [due, onFinishCheck, snapshot.canExtend]);
+
+  return <section className="screen charging-screen"><div className="charging-orbit"><span>ϟ</span></div><span className="live-label"><i />充電中</span><h1>充電しています</h1><p className="lead">終了予定 {formatDate(snapshot.expectedFinishAt)}</p><div className="remaining-time"><span>終了予定まで</span><strong aria-live="off">{formatCountdown(remainingSeconds)}</strong><small>分 : 秒</small><div aria-hidden="true"><i style={{ width: `${remainingPercent}%` }} /></div></div><div className="notice-card"><strong>現地を最優先にしてください</strong><p>終了予定と待ち時間は参考値です。施設の案内に従って、充電が終わったら移動してください。</p></div><button className="primary-button" onClick={due ? onFinishCheck : onComplete} disabled={busy}>{busy ? "処理しています…" : due ? "終了・延長を選ぶ" : "充電が終わりました"}</button>{due && <button className="text-button" onClick={onFinishCheck}>終了3分前の確認を開く</button>}</section>;
+}
 
 function FinishConfirmScreen({ snapshot, onComplete, onExtend, onBack, busy }: { snapshot: Snapshot; onComplete: () => void; onExtend: () => void; onBack: () => void; busy: boolean }) {
   const modalRef = useRef<HTMLElement>(null); useModalFocus(modalRef, onBack);
@@ -499,4 +538,9 @@ function RecoveryScreen({ onSearch }: { onSearch: () => void }) { return <sectio
 function CancelDialog({ busy, onConfirm, onClose }: { busy: boolean; onConfirm: () => void; onClose: () => void }) {
   const modalRef = useRef<HTMLElement>(null); useModalFocus(modalRef, onClose);
   return <div className="modal-backdrop"><section ref={modalRef} className="modal" role="dialog" aria-modal="true" aria-labelledby="cancel-title" tabIndex={-1}><button className="modal-close" onClick={onClose} aria-label="閉じる">×</button><p className="eyebrow">LEAVE QUEUE</p><h1 id="cancel-title">待ち列から退出しますか？</h1><p className="lead">退出すると順番は戻せません。</p><button className="primary-button danger-button" onClick={onConfirm} disabled={busy}>{busy ? "退出しています…" : "退出する"}</button><button className="secondary-button" onClick={onClose}>待機を続ける</button></section></div>;
+}
+
+function SkipStartDialog({ busy, onConfirm, onClose }: { busy: boolean; onConfirm: () => void; onClose: () => void }) {
+  const modalRef = useRef<HTMLElement>(null); useModalFocus(modalRef, onClose);
+  return <div className="modal-backdrop"><section ref={modalRef} className="modal" role="dialog" aria-modal="true" aria-labelledby="skip-start-title" tabIndex={-1}><button className="modal-close" onClick={onClose} aria-label="閉じる">×</button><p className="eyebrow">PHYSICAL VACANCY</p><h1 id="skip-start-title">周りに並んでいそうな車両はいませんか？</h1><p className="lead">現地の並びを確認し、問題なければ目の前の空きストールで充電を開始できます。開始後は後続の待ち時間を再計算します。</p><button className="primary-button" onClick={onConfirm} disabled={busy}>{busy ? "開始を記録しています…" : "問題ないので充電を開始する"}</button><button className="secondary-button" onClick={onClose} disabled={busy}>待機を続ける</button></section></div>;
 }

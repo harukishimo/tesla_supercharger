@@ -3,7 +3,7 @@ export type ErrorCode =
   | "TERMS_NOT_ACCEPTED" | "TERMS_VERSION_OUTDATED" | "NICKNAME_INVALID"
   | "CAPTCHA_FAILED" | "RATE_LIMITED" | "ENTRY_NOT_FOUND" | "MANAGEMENT_TOKEN_INVALID"
   | "IDEMPOTENCY_KEY_REUSED"
-  | "START_NOT_AVAILABLE" | "CALL_EXPIRED" | "DURATION_REQUIRED" | "DURATION_NOT_INTEGER"
+  | "START_NOT_AVAILABLE" | "SKIP_START_NOT_AVAILABLE" | "CALL_EXPIRED" | "DURATION_REQUIRED" | "DURATION_NOT_INTEGER"
   | "DURATION_OUT_OF_RANGE" | "DURATION_ALREADY_CONFIRMED" | "EXTENSION_UNAVAILABLE"
   | "COMPLETE_NOT_AVAILABLE" | "PUSH_REGISTRATION_FAILED" | "SERVER_TEMPORARY_ERROR"
   | "UNEXPECTED_ERROR" | "CONFIGURATION_ERROR" | "INVALID_QUEUE_STATE";
@@ -21,6 +21,7 @@ const MESSAGES: Record<ErrorCode, string> = {
   ENTRY_NOT_FOUND: "この待ち列の情報を確認できません。利用が終了したか、ブラウザのデータが変更された可能性があります。",
   MANAGEMENT_TOKEN_INVALID: "この待ち列の情報を確認できません。利用が終了したか、ブラウザのデータが変更された可能性があります。",
   START_NOT_AVAILABLE: "まだ充電開始を受け付けられません。順番の状態を確認してください。",
+  SKIP_START_NOT_AVAILABLE: "現地の空きを待ち列へ反映できませんでした。周りの並びを確認して、最新の状態を確認してください。",
   CALL_EXPIRED: "充電開始の受付時間を過ぎたため、待ち列を終了しました。必要な場合は現地状況を確認して、もう一度参加してください。",
   DURATION_REQUIRED: "予定充電時間を入力してください。",
   DURATION_NOT_INTEGER: "充電時間は1分単位の整数で入力してください。",
@@ -45,14 +46,14 @@ export class ApiError extends Error {
 export function statusFor(code: ErrorCode): number {
   if (code === "MANAGEMENT_TOKEN_INVALID") return 403;
   if (code === "FACILITY_NOT_FOUND" || code === "ENTRY_NOT_FOUND") return 404;
-  if (code === "FACILITY_QUEUE_DISABLED" || code === "FULL_CONFIRMATION_REQUIRED" || code === "IDEMPOTENCY_KEY_REUSED" || code === "START_NOT_AVAILABLE" || code === "CALL_EXPIRED" || code === "DURATION_ALREADY_CONFIRMED" || code === "EXTENSION_UNAVAILABLE" || code === "COMPLETE_NOT_AVAILABLE" || code === "INVALID_QUEUE_STATE") return 409;
+  if (code === "FACILITY_QUEUE_DISABLED" || code === "FULL_CONFIRMATION_REQUIRED" || code === "IDEMPOTENCY_KEY_REUSED" || code === "START_NOT_AVAILABLE" || code === "SKIP_START_NOT_AVAILABLE" || code === "CALL_EXPIRED" || code === "DURATION_ALREADY_CONFIRMED" || code === "EXTENSION_UNAVAILABLE" || code === "COMPLETE_NOT_AVAILABLE" || code === "INVALID_QUEUE_STATE") return 409;
   if (code === "RATE_LIMITED") return 429;
   if (code === "SERVER_TEMPORARY_ERROR" || code === "CONFIGURATION_ERROR") return 503;
   return 400;
 }
 
 export function retryableFor(code: ErrorCode): boolean {
-  return ["CAPTCHA_FAILED", "RATE_LIMITED", "START_NOT_AVAILABLE", "EXTENSION_UNAVAILABLE", "COMPLETE_NOT_AVAILABLE", "SERVER_TEMPORARY_ERROR", "UNEXPECTED_ERROR", "INVALID_QUEUE_STATE"].includes(code);
+  return ["CAPTCHA_FAILED", "RATE_LIMITED", "START_NOT_AVAILABLE", "SKIP_START_NOT_AVAILABLE", "EXTENSION_UNAVAILABLE", "COMPLETE_NOT_AVAILABLE", "SERVER_TEMPORARY_ERROR", "UNEXPECTED_ERROR", "INVALID_QUEUE_STATE"].includes(code);
 }
 
 export function jsonError(error: unknown): Response {

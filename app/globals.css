@@ -52,7 +52,7 @@ a { color: var(--green); }
 .video-player { width: 100%; border-radius: 12px; background: #17201d; aspect-ratio: 64 / 45; object-fit: contain; }
 .video-modal-note { color: var(--muted); margin: 12px 2px 0; font-size: 9px; line-height: 1.6; }
 .app-header { min-height: 48px; height: 48px; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: 40px 1fr 40px; align-items: center; padding: 0 16px; background: rgba(255,255,255,.96); position: relative; z-index: 3; }
-.brand { display: flex; justify-content: center; align-items: center; gap: 7px; min-width: 0; font-size: 12px; white-space: nowrap; }
+.brand { display: flex; justify-content: center; align-items: center; gap: 7px; min-width: 0; color: inherit; font-size: 12px; text-decoration: none; white-space: nowrap; }
 .brand-mark { display: grid; place-items: center; width: 23px; height: 23px; border-radius: 8px 8px 10px 10px; background: var(--green); color: #fff; font-size: 12px; font-weight: 900; }
 .icon-button { width: 36px; height: 36px; border: 0; background: transparent; font-size: 28px; line-height: 1; display: grid; place-items: center; }
 .icon-button:disabled { visibility: hidden; }
@@ -183,10 +183,10 @@ h2 { font-size: 16px; line-height: 1.3; margin: 0; letter-spacing: -.02em; }
 .live-label i { width: 6px; height: 6px; border-radius: 50%; background: #20a66a; }
 .remaining-time { padding: 16px; margin: 20px 0 13px; border-radius: 14px; background: var(--subtle); }
 .remaining-time > span { color: var(--muted); font-size: 9px; }
-.remaining-time > strong { display: block; font-size: 31px; margin: 4px; }
-.remaining-time > strong small { font-size: 10px; margin-left: 2px; }
+.remaining-time > strong { display: block; font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 31px; line-height: 1.1; margin: 6px 0 2px; }
+.remaining-time > small { display: block; color: var(--muted); font-size: 8px; margin-bottom: 11px; }
 .remaining-time > div { height: 6px; overflow: hidden; border-radius: 6px; background: #dfe6df; }
-.remaining-time > div i { display: block; height: 100%; border-radius: inherit; background: var(--green); transition: width .4s; }
+.remaining-time > div i { display: block; height: 100%; border-radius: inherit; background: var(--green); transition: width 1s linear; }
 
 .result-screen { text-align: center; padding-top: 62px; }
 .result-mark { display: grid; place-items: center; width: 90px; height: 90px; margin: 0 auto 24px; border-radius: 50%; color: #fff; background: var(--green); box-shadow: 0 0 0 12px rgba(202,239,134,.22); font-size: 36px; }

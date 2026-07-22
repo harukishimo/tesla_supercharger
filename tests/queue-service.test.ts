@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { InMemoryQueueStore, emptySlot, setQueueStoreForTests, type SiteRecord } from "../lib/server/db";
-import { completeQueue, getMyQueue, joinQueue, setDuration, startQueue } from "../lib/server/queue-service";
+import { completeQueue, getMyQueue, joinQueue, setDuration, skipWaitAndStartQueue, startQueue } from "../lib/server/queue-service";
 
 const now = new Date("2026-07-22T06:20:00.000Z");
 const site: SiteRecord = {
@@ -39,6 +39,26 @@ test("待ち列の参加→呼出→開始→時間確定→完了→後続繰�
     const promoted = await getMyQueue(second.entryId, second.token, new Date(now.getTime() + 5_000));
     assert.equal(promoted.status, "called");
     assert.equal(promoted.position, null);
+  } finally {
+    setQueueStoreForTests(undefined);
+  }
+});
+
+test("現地の空きへ移動した待機者は充電開始され、後続を再計算する", async () => {
+  const store = new InMemoryQueueStore();
+  store.addSite(site, [emptySlot("slot-1", "unknown"), emptySlot("slot-2", "unknown")]);
+  setQueueStoreForTests(store);
+  try {
+    const first = await joinQueue({ siteId: site.id, nickname: "先頭", siteIsFull: true, acceptedTerms: true, termsVersion: "2026-07-22", now });
+    const second = await joinQueue({ siteId: site.id, nickname: "空き発見", siteIsFull: false, acceptedTerms: true, termsVersion: "2026-07-22", now: new Date(now.getTime() + 1_000) });
+    const skipped = await skipWaitAndStartQueue(second.entryId, second.token, new Date(now.getTime() + 2_000));
+    assert.equal(skipped.snapshot.status, "charging");
+    assert.equal(skipped.snapshot.canSetDuration, true);
+    assert.equal(skipped.snapshot.estimatedWaitMinutes, 0);
+    const firstAfter = await getMyQueue(first.entryId, first.token, new Date(now.getTime() + 3_000));
+    assert.equal(firstAfter.status, "waiting");
+    assert.equal(firstAfter.estimatedWaitMinutes, 45);
+    assert.equal(firstAfter.queueVersion, skipped.snapshot.queueVersion);
   } finally {
     setQueueStoreForTests(undefined);
   }

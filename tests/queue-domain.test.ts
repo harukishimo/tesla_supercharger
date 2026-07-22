@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { extensionWindowOpen, isCallExpired, isFinishConfirmationDue, recalculateQueue, roundWaitMinutes } from "../lib/queue/recalculate";
-import { confirmInitialDuration, extendCharging, startCharging, validateDuration, QueueDomainError } from "../lib/queue/state";
+import { confirmInitialDuration, extendCharging, skipWaitAndStartCharging, startCharging, validateDuration, QueueDomainError } from "../lib/queue/state";
 import type { QueueEntry, QueueSlot } from "../lib/queue/types";
 
 const at = (value: string) => new Date(`2026-07-22T${value}:00+09:00`);
@@ -58,6 +58,15 @@ test("初回時間は30分を確定し、確定後の再確定を拒否する", 
   assert.equal(confirmed.initialChargeMinutes, 30);
   assert.equal(confirmed.expectedFinishAt?.toISOString().slice(11, 16), "06:50");
   assert.throws(() => confirmInitialDuration(confirmed, 40, at("15:22")), (error: unknown) => error instanceof QueueDomainError && error.code === "DURATION_ALREADY_CONFIRMED");
+});
+
+test("現地の空きを確認した待機者は直接充電中へ移行できる", () => {
+  const started = skipWaitAndStartCharging({ ...waiting("a", 1), assignedSlotId: "s1" }, at("15:20"));
+  assert.equal(started.status, "charging");
+  assert.equal(started.calledAt, null);
+  assert.equal(started.callExpiresAt, null);
+  assert.equal(started.expectedFinishAt?.toISOString().slice(11, 16), "07:05");
+  assert.throws(() => skipWaitAndStartCharging({ ...started, status: "called" }, at("15:20")), (error: unknown) => error instanceof QueueDomainError && error.code === "SKIP_START_NOT_AVAILABLE");
 });
 
 test("延長は終了予定3分前から5分後まで、5〜120分だけ許可する", () => {

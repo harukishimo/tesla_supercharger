@@ -22,6 +22,13 @@ test("スパQの入口画面・待ち列画面・安全な動線がある", asyn
   assert.match(queuePage, /api\/queue\/me/);
   assert.match(queuePage, /api\/queue\/duration/);
   assert.match(queuePage, /api\/queue\/extend/);
+  assert.match(queuePage, /api\/queue\/skip-start/);
+  assert.match(queuePage, /周りに並んでいそうな車両はいませんか？/);
+  assert.match(queuePage, /useCountdownSeconds/);
+  assert.match(queuePage, /formatCountdown/);
+  assert.match(queuePage, /remainingPercent/);
+  assert.match(queuePage, /className="brand" href="\/"/);
+  assert.match(queuePage, /スパQのホームへ戻る/);
   assert.doesNotMatch(queuePage, /advance-demo|MOCK/);
   assert.doesNotMatch(queuePage, /Google Maps|現在地から|近い順/);
   assert.match(layout, /lang="ja"/);
@@ -40,6 +47,7 @@ test("Route HandlerとPWAの構成ファイルが揃っている", async () => {
     "app/api/queue/me/route.ts",
     "app/api/queue/cancel/route.ts",
     "app/api/queue/start/route.ts",
+    "app/api/queue/skip-start/route.ts",
     "app/api/queue/duration/route.ts",
     "app/api/queue/extend/route.ts",
     "app/api/queue/complete/route.ts",

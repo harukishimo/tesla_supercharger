@@ -22,6 +22,29 @@ export function startCharging(entry: QueueEntry, now: Date, fallbackMinutes = QU
   return { ...entry, status: "charging", chargingStartedAt: started, expectedFinishAt: finish, finishConfirmationExpiresAt: expectedFinishAt(finish, QUEUE_MINUTES.finishGrace) };
 }
 
+/**
+ * Record an immediate charge start after the user has confirmed an actually
+ * open physical stall and checked the local queue. The service assigns the
+ * virtual stall under the facility lock before calling this transition.
+ */
+export function skipWaitAndStartCharging(entry: QueueEntry, now: Date, fallbackMinutes = QUEUE_MINUTES.fallback): QueueEntry {
+  if (entry.status !== "waiting" && entry.status !== "notified") throw new QueueDomainError("SKIP_START_NOT_AVAILABLE");
+  if (!entry.assignedSlotId) throw new QueueDomainError("SKIP_START_NOT_AVAILABLE");
+  const started = new Date(now);
+  const finish = expectedFinishAt(started, fallbackMinutes);
+  return {
+    ...entry,
+    status: "charging",
+    estimatedStartAt: started,
+    estimateConfidence: "confirmed",
+    calledAt: null,
+    callExpiresAt: null,
+    chargingStartedAt: started,
+    expectedFinishAt: finish,
+    finishConfirmationExpiresAt: expectedFinishAt(finish, QUEUE_MINUTES.finishGrace),
+  };
+}
+
 export function confirmInitialDuration(entry: QueueEntry, value: unknown, now: Date): QueueEntry {
   if (entry.status !== "charging" || !entry.chargingStartedAt) throw new QueueDomainError("INVALID_QUEUE_STATE");
   if (entry.initialChargeMinutes !== null || entry.durationConfirmedAt !== null) throw new QueueDomainError("DURATION_ALREADY_CONFIRMED");

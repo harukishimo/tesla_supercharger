@@ -1,5 +1,5 @@
 import { recalculateQueue, minutesUntil, roundWaitMinutes, isCallExpired, isFinishConfirmationDue, isFinishNoticeDue, isFiveMinuteNoticeDue, QUEUE_MINUTES } from "../queue/recalculate";
-import { canComplete, confirmInitialDuration, extendCharging, startCharging, QueueDomainError } from "../queue/state";
+import { canComplete, confirmInitialDuration, extendCharging, skipWaitAndStartCharging, startCharging, QueueDomainError } from "../queue/state";
 import type { QueueEntry } from "../queue/types";
 import { ApiError } from "./errors";
 import { getQueueStore, type QueueEntryRecord, type QueueTransaction, type SiteRecord } from "./db";
@@ -22,6 +22,7 @@ export interface QueueSnapshot {
   expectedFinishAt: string | null;
   finishConfirmationExpiresAt: string | null;
   canStart: boolean;
+  canSkipStart: boolean;
   canSetDuration: boolean;
   canExtend: boolean;
   canComplete: boolean;
@@ -72,6 +73,7 @@ function snapshot(tx: QueueTransaction, entry: QueueEntryRecord, now: Date): Que
     expectedFinishAt: iso(entry.expectedFinishAt),
     finishConfirmationExpiresAt: iso(entry.finishConfirmationExpiresAt),
     canStart: entry.status === "called",
+    canSkipStart: entry.status === "waiting" || entry.status === "notified",
     canSetDuration: entry.status === "charging" && entry.initialChargeMinutes === null,
     canExtend: entry.status === "charging" && !!entry.expectedFinishAt && entry.expectedFinishAt.getTime() - now.getTime() <= 3 * 60_000 && entry.expectedFinishAt.getTime() - now.getTime() >= -5 * 60_000,
     canComplete: canComplete(entry),
@@ -210,7 +212,7 @@ async function mutateEntry(entryId: string, token: string, operation: (tx: Queue
   if (result.snapshot) {
     return result as { snapshot: QueueSnapshot; siteId: string; queueVersion: number };
   }
-  return { snapshot: { entryId, status: "waiting", position: null, aheadCount: null, estimatedStartAt: null, estimatedWaitMinutes: null, estimateConfidence: "unknown", calledAt: null, callExpiresAt: null, chargingStartedAt: null, expectedFinishAt: null, finishConfirmationExpiresAt: null, canStart: false, canSetDuration: false, canExtend: false, canComplete: false, queueVersion: result.queueVersion }, siteId: result.siteId, queueVersion: result.queueVersion };
+  return { snapshot: { entryId, status: "waiting", position: null, aheadCount: null, estimatedStartAt: null, estimatedWaitMinutes: null, estimateConfidence: "unknown", calledAt: null, callExpiresAt: null, chargingStartedAt: null, expectedFinishAt: null, finishConfirmationExpiresAt: null, canStart: false, canSkipStart: false, canSetDuration: false, canExtend: false, canComplete: false, queueVersion: result.queueVersion }, siteId: result.siteId, queueVersion: result.queueVersion };
 }
 
 export async function cancelQueue(entryId: string, token: string, now = new Date(), request: MutationRequest = {}) {
@@ -233,6 +235,40 @@ export async function startQueue(entryId: string, token: string, now = new Date(
     Object.assign(entry, updated);
     const slot = tx.slots.find((candidate) => candidate.id === entry.assignedSlotId);
     if (slot) { slot.status = "occupied"; slot.activeEntryId = entry.id; slot.estimatedAvailableAt = new Date(entry.expectedFinishAt!); }
+    applyRecalculation(tx, now);
+    tx.bumpVersion();
+  }, now, request);
+}
+
+function selectPhysicalOpenSlot(tx: QueueTransaction, entry: QueueEntryRecord) {
+  const activeSlotIds = new Set(tx.entries
+    .filter((candidate) => candidate.status === "called" || candidate.status === "charging")
+    .map((candidate) => candidate.assignedSlotId)
+    .filter((slotId): slotId is string => !!slotId));
+  const statusRank = { available: 0, unknown: 1, occupied: 2, called: 3 } as const;
+  return tx.slots
+    .filter((slot) => !activeSlotIds.has(slot.id) && !slot.activeEntryId)
+    .sort((left, right) => {
+      const assigned = Number(right.id === entry.assignedSlotId) - Number(left.id === entry.assignedSlotId);
+      if (assigned) return assigned;
+      const status = statusRank[left.status] - statusRank[right.status];
+      if (status) return status;
+      return (left.estimatedAvailableAt?.getTime() ?? 0) - (right.estimatedAvailableAt?.getTime() ?? 0) || left.id.localeCompare(right.id);
+    })[0] ?? null;
+}
+
+/** Confirmed physical vacancy: bypass the virtual wait and immediately occupy
+ * one non-active stall, then recalculate every remaining estimate. */
+export async function skipWaitAndStartQueue(entryId: string, token: string, now = new Date(), request: MutationRequest = {}) {
+  return mutateEntry(entryId, token, async (tx, entry) => {
+    const slot = selectPhysicalOpenSlot(tx, entry);
+    if (!slot) throw new ApiError("SKIP_START_NOT_AVAILABLE");
+    let updated: QueueEntryRecord;
+    try { updated = skipWaitAndStartCharging({ ...entry, assignedSlotId: slot.id }, now, QUEUE_MINUTES.fallback) as QueueEntryRecord; } catch (error) { return domainError(error); }
+    Object.assign(entry, updated);
+    slot.status = "occupied";
+    slot.activeEntryId = entry.id;
+    slot.estimatedAvailableAt = new Date(entry.expectedFinishAt!);
     applyRecalculation(tx, now);
     tx.bumpVersion();
   }, now, request);
