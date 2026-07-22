@@ -26,12 +26,12 @@ Realtimeは、同じ施設を見ている画面の順位、前方人数、待ち
 
 `20260722020000_public_realtime_signal.sql` が、`queue_version`変更時のTriggerをpublic Broadcastへ変更する。private channelはSupabase AuthのJWTを必要とするため、ログインを実装しない本サービスでは使用しない。
 
-public Broadcastは第三者が偽のイベントを送れる可能性がある。そのためpayloadを状態更新には使用せず、施設IDと正の安全な更新番号を検査し、1秒に1回までのAPI再取得の合図にだけ使う。APIレスポンスだけを正本とし、Broadcastの更新番号を既知versionとして保存しない。ユーザーアカウント、プロフィール、履歴データは作成しない。
+public Broadcastは第三者が偽のイベントを送れる可能性がある。そのためpayloadを状態更新には使用せず、施設IDと正の安全な更新番号を検査し、5秒に1回までのAPI再取得の合図にだけ使う。APIレスポンスだけを正本とし、Broadcastの更新番号を既知versionとして保存しない。ユーザーアカウント、プロフィール、履歴データは作成しない。
 
 ## ブラウザ側の動作
 
 1. 施設詳細画面を開いた時、その施設のpublic channelを購読する。
-2. `queue_changed`を受けたら、施設IDと`queueVersion`の形式を検査する。1秒以内の複数イベントは最新の合図へcoalesceし、再取得を増幅させない。
+2. `queue_changed`を受けたら、施設IDと`queueVersion`の形式を検査する。5秒以内の複数イベントは最新の合図へcoalesceし、再取得を増幅させない。
 3. 待ち列へ参加中なら`GET /api/queue/me`で本人状態を再取得する。施設詳細だけを見ている場合は`GET /api/sites/:siteId/summary`を再取得する。
 4. 受信したデータでReact stateだけを更新し、ページ全体を再読み込みしない。
 

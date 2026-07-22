@@ -39,6 +39,7 @@ test("スパQの入口画面・待ち列画面・安全な動線がある", asyn
   assert.match(realtimeMigration, /realtime\.send/);
   assert.match(realtimeMigration, /'site:' \|\| new\.id::text,\s*false/);
   assert.match(realtimeClient, /private: false/);
+  assert.match(realtimeClient, /REALTIME_REFRESH_INTERVAL_MS = 5_000/);
   assert.doesNotMatch(realtimeClient, /access_token: publishableKey/);
   assert.match(packageJson, /"next":/);
   assert.doesNotMatch(vercelConfig, /"crons"/);

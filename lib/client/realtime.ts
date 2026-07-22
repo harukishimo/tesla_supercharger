@@ -1,5 +1,7 @@
 export type QueueChangedPayload = { siteId: string; queueVersion: number };
 
+const REALTIME_REFRESH_INTERVAL_MS = 5_000;
+
 type RealtimeMessage = {
   event?: string;
   topic?: string;
@@ -56,7 +58,7 @@ export function subscribeToQueue(siteId: string, onChange: (payload: QueueChange
         lastDeliveredAt = Date.now();
         onChange(next);
       };
-      const wait = Math.max(0, 1_000 - (Date.now() - lastDeliveredAt));
+      const wait = Math.max(0, REALTIME_REFRESH_INTERVAL_MS - (Date.now() - lastDeliveredAt));
       if (deliveryTimer === null) deliveryTimer = window.setTimeout(deliver, wait);
     } catch {
       // Ignore malformed public signals; polling will recover the state.
